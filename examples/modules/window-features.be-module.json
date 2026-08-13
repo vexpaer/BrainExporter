@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "example.window-features",
+  "name": "窗口统计特征",
+  "version": "1.0.0",
+  "description": "可导入的 EEG→多特征示例：逐通道 RMS 与峰峰值。",
+  "type": "eeg_to_features",
+  "engine": "window_statistics",
+  "config": {
+    "windowSeconds": 2.0,
+    "strideSeconds": 0.5
+  }
+}

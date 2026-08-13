@@ -7,11 +7,20 @@ import io.github.vexpaer.brainexporter.sdk.ConnectionState
 import io.github.vexpaer.brainexporter.sdk.DeviceDescriptor
 import io.github.vexpaer.brainexporter.sdk.DevicePlugin
 import io.github.vexpaer.brainexporter.sdk.DevicePluginListener
+import io.github.vexpaer.brainexporter.sdk.EegProcessingModule
 import io.github.vexpaer.brainexporter.sdk.EegRecordingSink
+import io.github.vexpaer.brainexporter.sdk.EegSignalModuleOutput
+import io.github.vexpaer.brainexporter.sdk.FeatureModuleOutput
 import io.github.vexpaer.brainexporter.sdk.ImpedanceState
+import io.github.vexpaer.brainexporter.sdk.ModuleFeatureSeries
 import io.github.vexpaer.brainexporter.sdk.MonitorController
 import io.github.vexpaer.brainexporter.sdk.MonitorSnapshot
 import io.github.vexpaer.brainexporter.sdk.MonitorView
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleDescriptor
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleOrigin
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleOutput
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleState
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleType
 import io.github.vexpaer.brainexporter.sdk.SignalAlgorithm
 import io.github.vexpaer.brainexporter.sdk.SignalSample
 import io.github.vexpaer.brainexporter.sdk.SnapshotListener
@@ -22,17 +31,19 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * Hardware-neutral session runtime. It only knows the public plug-in contracts;
- * replacing RT-BCI with another headset does not require changing the UI.
+ * Hardware-neutral session runtime. Device, analysis and streaming processing modules only meet
+ * through the public SDK contracts, so an imported module never needs access to BLE or Android UI.
  */
 class BrainExporterRuntime(
     private val device: DevicePlugin,
     private val algorithm: SignalAlgorithm,
     private val recordingSink: EegRecordingSink? = null,
+    modules: List<EegProcessingModule> = emptyList(),
 ) : MonitorController, DevicePluginListener {
     private val stateLock = Any()
     private val listeners = CopyOnWriteArraySet<SnapshotListener>()
     private val samples = ArrayDeque<SignalSample>()
+    private val moduleSlots = linkedMapOf<String, ModuleSlot>()
     private val scheduler = Executors.newScheduledThreadPool(2) { runnable ->
         Thread(runnable, "brainexporter-runtime").apply { isDaemon = true }
     }
@@ -44,11 +55,15 @@ class BrainExporterRuntime(
     private var analyses: List<ChannelAnalysis> = emptyList()
     private var activeView = MonitorView.TIME
     private var acquisition = AcquisitionState()
+    private var selectedModuleId: String? = null
 
     @Volatile
     private var lastSnapshot = MonitorSnapshot(capabilities = device.capabilities)
 
     init {
+        synchronized(stateLock) {
+            modules.forEach(::registerModuleLocked)
+        }
         device.setListener(this)
         scheduler.scheduleAtFixedRate(
             { publish() },
@@ -62,6 +77,7 @@ class BrainExporterRuntime(
             360,
             TimeUnit.MILLISECONDS,
         )
+        publish()
     }
 
     override fun snapshot(): MonitorSnapshot = lastSnapshot
@@ -82,6 +98,66 @@ class BrainExporterRuntime(
         if (view != MonitorView.TIME && view != MonitorView.IMPEDANCE) {
             scheduler.execute(::refreshAnalysis)
         }
+    }
+
+    override fun setModuleEnabled(moduleId: String, enabled: Boolean) {
+        synchronized(stateLock) {
+            val slot = moduleSlots[moduleId] ?: return
+            if (slot.enabled == enabled) return
+            slot.enabled = enabled
+            slot.clearOutput()
+            runCatching { slot.module.reset() }
+                .onFailure { slot.error = it.message ?: "模块重置失败" }
+            slot.message = if (enabled) "已添加到监测，等待脑电数据" else "尚未添加到监测"
+            if (!enabled && selectedModuleId == moduleId) selectedModuleId = null
+            analyses = emptyList()
+        }
+        publish()
+        if (enabled && activeView != MonitorView.TIME && activeView != MonitorView.IMPEDANCE) {
+            scheduler.execute(::refreshAnalysis)
+        }
+    }
+
+    override fun selectModule(moduleId: String?) {
+        synchronized(stateLock) {
+            if (moduleId != null && moduleSlots[moduleId]?.enabled != true) return
+            if (selectedModuleId == moduleId) return
+            selectedModuleId = moduleId
+            analyses = emptyList()
+        }
+        publish()
+        if (activeView != MonitorView.TIME && activeView != MonitorView.IMPEDANCE) {
+            scheduler.execute(::refreshAnalysis)
+        }
+    }
+
+    /** Installs a compiled-in or validated declarative module into this running session. */
+    fun installModule(module: EegProcessingModule): ProcessingModuleDescriptor {
+        synchronized(stateLock) { registerModuleLocked(module) }
+        publish()
+        return module.descriptor
+    }
+
+    /** Only imported packages are removable; built-in examples are part of the application. */
+    fun uninstallModule(moduleId: String) {
+        val removed = synchronized(stateLock) {
+            val slot = moduleSlots[moduleId] ?: return
+            require(slot.module.descriptor.origin == ProcessingModuleOrigin.IMPORTED) {
+                "内置模块不能移除"
+            }
+            if (selectedModuleId == moduleId) selectedModuleId = null
+            analyses = emptyList()
+            moduleSlots.remove(moduleId)
+        } ?: return
+        runCatching { removed.module.close() }
+        publish()
+    }
+
+    private fun registerModuleLocked(module: EegProcessingModule) {
+        val descriptor = module.descriptor
+        require(descriptor.id.matches(MODULE_ID_PATTERN)) { "模块 ID 格式无效：${descriptor.id}" }
+        require(descriptor.id !in moduleSlots) { "模块 ${descriptor.id} 已安装" }
+        moduleSlots[descriptor.id] = ModuleSlot(module)
     }
 
     override fun scan() = runDeviceOperation("无法开始扫描") { device.scan() }
@@ -118,6 +194,12 @@ class BrainExporterRuntime(
                 samples.clear()
                 analyses = emptyList()
                 metrics = StreamMetrics()
+                moduleSlots.values.forEach { slot ->
+                    slot.clearOutput()
+                    slot.message = if (slot.enabled) "已添加到监测，等待脑电数据" else "尚未添加到监测"
+                    runCatching { slot.module.reset() }
+                        .onFailure { slot.error = it.message ?: "模块重置失败" }
+                }
                 acquisition = AcquisitionState(
                     active = true,
                     startedAtEpochMillis = System.currentTimeMillis(),
@@ -215,7 +297,17 @@ class BrainExporterRuntime(
         }
         synchronized(stateLock) {
             samples.forEach(this.samples::addLast)
-            while (this.samples.size > MAX_BUFFERED_SAMPLES) this.samples.removeFirst()
+            trimSignalBuffer(this.samples)
+            moduleSlots.values.filter { it.enabled }.forEach { slot ->
+                runCatching { slot.module.process(samples, SAMPLE_RATE_HZ) }
+                    .onSuccess { output -> applyModuleOutput(slot, output) }
+                    .onFailure { failure ->
+                        slot.error = failure.message ?: "模块处理失败"
+                        slot.message = "处理已暂停，请移除后重新添加"
+                        slot.enabled = false
+                        if (selectedModuleId == slot.module.descriptor.id) selectedModuleId = null
+                    }
+            }
             this.metrics = metrics
             if (shouldRecord) {
                 acquisition = acquisition.copy(
@@ -225,6 +317,41 @@ class BrainExporterRuntime(
             }
         }
         if (recordingError != null) scheduler.execute(::stopAcquisition)
+    }
+
+    private fun applyModuleOutput(slot: ModuleSlot, output: ProcessingModuleOutput) {
+        when (output) {
+            is EegSignalModuleOutput -> {
+                require(slot.module.descriptor.type == ProcessingModuleType.EEG_TO_EEG) {
+                    "模块声明与 EEG 输出不一致"
+                }
+                output.samples.forEach(slot.signalSamples::addLast)
+                trimSignalBuffer(slot.signalSamples)
+                slot.message = "已处理 ${slot.processedSamples + output.samples.size} 个采样点"
+                slot.processedSamples += output.samples.size
+                slot.error = null
+            }
+
+            is FeatureModuleOutput -> {
+                require(slot.module.descriptor.type == ProcessingModuleType.EEG_TO_FEATURES) {
+                    "模块声明与特征输出不一致"
+                }
+                output.values.filter { it.value.isFinite() }.forEach { feature ->
+                    val series = slot.features.getOrPut(feature.key) {
+                        FeatureAccumulator(feature.label, feature.unit, feature.channel)
+                    }
+                    series.label = feature.label
+                    series.unit = feature.unit
+                    series.channel = feature.channel
+                    series.values.addLast(feature.value)
+                    while (series.values.size > MAX_FEATURE_POINTS) series.values.removeFirst()
+                }
+                if (output.values.isNotEmpty()) {
+                    slot.message = "已更新 ${output.values.size} 个特征值"
+                    slot.error = null
+                }
+            }
+        }
     }
 
     override fun onImpedanceChanged(state: ImpedanceState) {
@@ -238,7 +365,12 @@ class BrainExporterRuntime(
         synchronized(stateLock) {
             view = activeView
             if (view == MonitorView.TIME || view == MonitorView.IMPEDANCE) return
-            signal = samples.toList()
+            val selected = selectedModuleId?.let(moduleSlots::get)
+            if (selected?.module?.descriptor?.type == ProcessingModuleType.EEG_TO_FEATURES) {
+                analyses = emptyList()
+                return
+            }
+            signal = signalBufferLocked(selected).toList()
         }
         val calculated = try {
             algorithm.analyze(signal, view, SAMPLE_RATE_HZ)
@@ -253,12 +385,10 @@ class BrainExporterRuntime(
 
     private fun publish() {
         val snapshot = synchronized(stateLock) {
-            val visibleSamples = if (samples.isEmpty()) {
-                emptyList()
-            } else {
-                val earliest = samples.peekLast().index - VISIBLE_SAMPLE_SPAN
-                samples.asSequence().filter { it.index >= earliest }.toList()
-            }
+            val selected = selectedModuleId?.let(moduleSlots::get)?.takeIf { it.enabled }
+            if (selected == null && selectedModuleId != null) selectedModuleId = null
+            val visibleSamples = visibleSamples(signalBufferLocked(selected))
+            val selectedDescriptor = selected?.module?.descriptor
             MonitorSnapshot(
                 devices = devices,
                 connection = connection,
@@ -269,6 +399,26 @@ class BrainExporterRuntime(
                 acquisition = acquisition,
                 activeView = activeView,
                 capabilities = device.capabilities,
+                modules = moduleSlots.values.map { slot ->
+                    ProcessingModuleState(
+                        descriptor = slot.module.descriptor,
+                        enabled = slot.enabled,
+                        message = slot.message,
+                        error = slot.error,
+                    )
+                },
+                selectedModuleId = selectedDescriptor?.id,
+                selectedModuleType = selectedDescriptor?.type,
+                signalSourceLabel = selectedDescriptor?.displayName ?: "原始脑电",
+                moduleFeatures = selected?.features?.map { (key, accumulator) ->
+                    ModuleFeatureSeries(
+                        key = key,
+                        label = accumulator.label,
+                        unit = accumulator.unit,
+                        channel = accumulator.channel,
+                        values = accumulator.values.toDoubleArray(),
+                    )
+                }.orEmpty(),
             )
         }
         lastSnapshot = snapshot
@@ -277,18 +427,65 @@ class BrainExporterRuntime(
         }
     }
 
+    private fun signalBufferLocked(selected: ModuleSlot?): ArrayDeque<SignalSample> =
+        if (selected?.module?.descriptor?.type == ProcessingModuleType.EEG_TO_EEG) {
+            selected.signalSamples
+        } else {
+            samples
+        }
+
+    private fun visibleSamples(source: ArrayDeque<SignalSample>): List<SignalSample> {
+        if (source.isEmpty()) return emptyList()
+        val earliest = source.peekLast().index - VISIBLE_SAMPLE_SPAN
+        return source.asSequence().filter { it.index >= earliest }.toList()
+    }
+
+    private fun trimSignalBuffer(buffer: ArrayDeque<SignalSample>) {
+        while (buffer.size > MAX_BUFFERED_SAMPLES) buffer.removeFirst()
+    }
+
     override fun close() {
         if (synchronized(stateLock) { acquisition.active }) stopAcquisition()
         device.setListener(null)
         device.close()
         runCatching { recordingSink?.close() }
+        synchronized(stateLock) {
+            moduleSlots.values.forEach { runCatching { it.module.close() } }
+            moduleSlots.clear()
+        }
         scheduler.shutdownNow()
         listeners.clear()
+    }
+
+    private class ModuleSlot(val module: EegProcessingModule) {
+        var enabled: Boolean = false
+        var message: String = "尚未添加到监测"
+        var error: String? = null
+        var processedSamples: Long = 0
+        val signalSamples = ArrayDeque<SignalSample>()
+        val features = linkedMapOf<String, FeatureAccumulator>()
+
+        fun clearOutput() {
+            signalSamples.clear()
+            features.clear()
+            processedSamples = 0
+            error = null
+        }
+    }
+
+    private class FeatureAccumulator(
+        var label: String,
+        var unit: String,
+        var channel: Int?,
+    ) {
+        val values = ArrayDeque<Double>()
     }
 
     private companion object {
         const val SAMPLE_RATE_HZ = 250.0
         const val MAX_BUFFERED_SAMPLES = 5_000
+        const val MAX_FEATURE_POINTS = 120
         const val VISIBLE_SAMPLE_SPAN = 1_500L
+        val MODULE_ID_PATTERN = Regex("[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}")
     }
 }

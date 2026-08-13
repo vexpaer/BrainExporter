@@ -63,6 +63,73 @@ data class AcquisitionState(
     val error: String? = null,
 )
 
+/** The two stable processing shapes supported by the module runtime. */
+enum class ProcessingModuleType {
+    EEG_TO_EEG,
+    EEG_TO_FEATURES,
+}
+
+enum class ProcessingModuleOrigin {
+    BUILT_IN,
+    IMPORTED,
+}
+
+data class ProcessingModuleDescriptor(
+    val id: String,
+    val displayName: String,
+    val version: String,
+    val description: String,
+    val type: ProcessingModuleType,
+    val engine: String,
+    val origin: ProcessingModuleOrigin = ProcessingModuleOrigin.BUILT_IN,
+)
+
+data class ModuleFeatureValue(
+    val key: String,
+    val label: String,
+    val value: Double,
+    val unit: String,
+    val channel: Int? = null,
+)
+
+sealed interface ProcessingModuleOutput
+
+data class EegSignalModuleOutput(
+    val samples: List<SignalSample>,
+) : ProcessingModuleOutput
+
+data class FeatureModuleOutput(
+    val values: List<ModuleFeatureValue>,
+    val producedAtNanos: Long,
+) : ProcessingModuleOutput
+
+/**
+ * Stable streaming module contract. Implementations may keep filter/window state between calls.
+ * A module always receives raw EEG batches; pipelines can be added later without changing output types.
+ */
+interface EegProcessingModule : AutoCloseable {
+    val descriptor: ProcessingModuleDescriptor
+
+    fun reset()
+    fun process(samples: List<SignalSample>, sampleRateHz: Double): ProcessingModuleOutput
+    override fun close() = Unit
+}
+
+data class ProcessingModuleState(
+    val descriptor: ProcessingModuleDescriptor,
+    val enabled: Boolean = false,
+    val message: String = "尚未添加到监测",
+    val error: String? = null,
+)
+
+data class ModuleFeatureSeries(
+    val key: String,
+    val label: String,
+    val unit: String,
+    val channel: Int? = null,
+    val values: DoubleArray = doubleArrayOf(),
+)
+
 enum class MonitorView {
     TIME,
     PSD,
@@ -123,6 +190,11 @@ data class MonitorSnapshot(
     val acquisition: AcquisitionState = AcquisitionState(),
     val activeView: MonitorView = MonitorView.TIME,
     val capabilities: Set<DeviceCapability> = emptySet(),
+    val modules: List<ProcessingModuleState> = emptyList(),
+    val selectedModuleId: String? = null,
+    val selectedModuleType: ProcessingModuleType? = null,
+    val signalSourceLabel: String = "原始脑电",
+    val moduleFeatures: List<ModuleFeatureSeries> = emptyList(),
 )
 
 interface DevicePluginListener {
@@ -171,6 +243,8 @@ interface MonitorController : AutoCloseable {
     fun disconnect()
     fun startAcquisition()
     fun stopAcquisition()
+    fun setModuleEnabled(moduleId: String, enabled: Boolean)
+    fun selectModule(moduleId: String?)
     fun startImpedance(channel: Int? = null)
     fun stopImpedance()
 }

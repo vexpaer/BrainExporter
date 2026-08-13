@@ -178,6 +178,41 @@ internal fun BandPowerChart(
 }
 
 @Composable
+internal fun FeatureHistoryChart(
+    values: DoubleArray,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    if (values.size < 2) {
+        EmptyChart("等待更多特征输出", modifier.height(118.dp))
+        return
+    }
+    val range = remember(values) {
+        val span = (values.maxOrNull() ?: 0.0) - (values.minOrNull() ?: 0.0)
+        paddedRange(values.toList(), minimumSpan = max(1e-6, span * 0.15))
+    }
+    Canvas(modifier = modifier.height(118.dp)) {
+        val plot = drawChartAxes(
+            yMin = range.first,
+            yMax = range.second,
+            yUnit = "",
+            xLabels = listOf("历史", "现在"),
+        )
+        val path = Path()
+        values.forEachIndexed { index, value ->
+            val x = plot.left + plot.width * index / max(1, values.lastIndex)
+            val y = plot.top + ((range.second - value) / (range.second - range.first)).toFloat() * plot.height
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(
+            path = path,
+            color = color,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()),
+        )
+    }
+}
+
+@Composable
 private fun EmptyChart(message: String, modifier: Modifier) {
     Card(
         modifier = modifier.height(190.dp),

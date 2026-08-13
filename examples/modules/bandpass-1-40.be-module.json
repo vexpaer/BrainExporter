@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "example.bandpass-1-40",
+  "name": "1–40 Hz 示例带通",
+  "version": "1.0.0",
+  "description": "可导入的 EEG→EEG 示例：Butterworth 1–40 Hz 带通滤波。",
+  "type": "eeg_to_eeg",
+  "engine": "butterworth_bandpass",
+  "config": {
+    "lowCutHz": 1.0,
+    "highCutHz": 40.0,
+    "order": 2
+  }
+}

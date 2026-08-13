@@ -8,13 +8,17 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import io.github.vexpaer.brainexporter.algorithm.BandPassEegModule
 import io.github.vexpaer.brainexporter.algorithm.BasicEegAlgorithm
+import io.github.vexpaer.brainexporter.algorithm.WindowStatisticsFeatureModule
 import io.github.vexpaer.brainexporter.device.rtbci.RtBciDevicePlugin
 import io.github.vexpaer.brainexporter.runtime.BrainExporterRuntime
 import io.github.vexpaer.brainexporter.ui.BrainExporterApp
 
 class MainActivity : ComponentActivity() {
     private lateinit var runtime: BrainExporterRuntime
+    private lateinit var updater: GitHubReleaseUpdater
+    private lateinit var modulePackages: AndroidModulePackageController
     private var pendingPermissionAction: (() -> Unit)? = null
     private var pendingRecordingAction: (() -> Unit)? = null
 
@@ -59,14 +63,24 @@ class MainActivity : ComponentActivity() {
             device = RtBciDevicePlugin(applicationContext),
             algorithm = BasicEegAlgorithm(),
             recordingSink = AndroidEegRecordingSink(applicationContext),
+            modules = listOf(
+                BandPassEegModule.builtIn1To40Hz(),
+                WindowStatisticsFeatureModule.builtIn(),
+            ),
         )
+        modulePackages = AndroidModulePackageController(applicationContext, runtime)
+        val currentVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.2.0"
+        updater = GitHubReleaseUpdater(applicationContext, currentVersion)
         setContent {
             BrainExporterApp(
                 controller = runtime,
                 permissionGate = { action -> runWithBluetoothPermissions(action) },
                 recordingPermissionGate = { action -> runWithRecordingPermission(action) },
+                modulePackages = modulePackages,
+                updateController = updater,
             )
         }
+        updater.checkForUpdates()
     }
 
     private fun runWithBluetoothPermissions(action: () -> Unit) {
@@ -100,7 +114,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        if (::updater.isInitialized) updater.close()
         if (::runtime.isInitialized) runtime.close()
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::updater.isInitialized) updater.onHostResume()
     }
 }

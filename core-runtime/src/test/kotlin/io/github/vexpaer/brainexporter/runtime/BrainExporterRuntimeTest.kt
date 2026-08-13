@@ -7,9 +7,14 @@ import io.github.vexpaer.brainexporter.sdk.DeviceCapability
 import io.github.vexpaer.brainexporter.sdk.DeviceDescriptor
 import io.github.vexpaer.brainexporter.sdk.DevicePlugin
 import io.github.vexpaer.brainexporter.sdk.DevicePluginListener
+import io.github.vexpaer.brainexporter.sdk.EegProcessingModule
 import io.github.vexpaer.brainexporter.sdk.EegRecordingSink
+import io.github.vexpaer.brainexporter.sdk.EegSignalModuleOutput
 import io.github.vexpaer.brainexporter.sdk.ImpedanceState
 import io.github.vexpaer.brainexporter.sdk.MonitorView
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleDescriptor
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleOutput
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleType
 import io.github.vexpaer.brainexporter.sdk.SignalAlgorithm
 import io.github.vexpaer.brainexporter.sdk.SignalSample
 import io.github.vexpaer.brainexporter.sdk.StreamMetrics
@@ -66,6 +71,27 @@ class BrainExporterRuntimeTest {
         }
     }
 
+    @Test
+    fun `enabled eeg module can become the monitor signal source`() {
+        val device = FakeDevice()
+        val runtime = BrainExporterRuntime(device, NoOpAlgorithm, FakeSink(), modules = listOf(AddOneModule()))
+        try {
+            runtime.connect("device-1")
+            runtime.setModuleEnabled("test.add-one", true)
+            runtime.selectModule("test.add-one")
+            runtime.startAcquisition()
+            device.emit(listOf(SignalSample(0, 1, DoubleArray(8) { 4.0 }, 10)))
+            runtime.stopAcquisition()
+
+            val snapshot = runtime.snapshot()
+            assertEquals("test.add-one", snapshot.selectedModuleId)
+            assertEquals("加一测试", snapshot.signalSourceLabel)
+            assertEquals(5.0, snapshot.samples.single().valuesUv[0], 0.0)
+        } finally {
+            runtime.close()
+        }
+    }
+
     private class FakeDevice : DevicePlugin {
         override val id = "fake"
         override val displayName = "Fake"
@@ -117,6 +143,24 @@ class BrainExporterRuntimeTest {
             view: MonitorView,
             sampleRateHz: Double,
         ): List<ChannelAnalysis> = emptyList()
+    }
+
+    private class AddOneModule : EegProcessingModule {
+        override val descriptor = ProcessingModuleDescriptor(
+            id = "test.add-one",
+            displayName = "加一测试",
+            version = "1.0.0",
+            description = "test",
+            type = ProcessingModuleType.EEG_TO_EEG,
+            engine = "test",
+        )
+
+        override fun reset() = Unit
+
+        override fun process(samples: List<SignalSample>, sampleRateHz: Double): ProcessingModuleOutput =
+            EegSignalModuleOutput(samples.map { sample ->
+                sample.copy(valuesUv = DoubleArray(sample.valuesUv.size) { channel -> sample.valuesUv[channel] + 1.0 })
+            })
     }
 
     private class FakeSink : EegRecordingSink {

@@ -2,15 +2,8 @@ package io.github.vexpaer.brainexporter.ui
 
 import android.os.Handler
 import android.os.Looper
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -61,18 +52,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +69,7 @@ typealias PermissionGate = (onGranted: () -> Unit) -> Unit
 typealias RecordingPermissionGate = (onGranted: () -> Unit) -> Unit
 
 const val GITHUB_REPOSITORY = "https://github.com/vexpaer/BrainExporter"
+const val GITHUB_RELEASES = "$GITHUB_REPOSITORY/releases/latest"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,6 +77,8 @@ fun BrainExporterApp(
     controller: MonitorController,
     permissionGate: PermissionGate,
     recordingPermissionGate: RecordingPermissionGate,
+    modulePackages: ModulePackageController,
+    updateController: AppUpdateController,
 ) {
     var snapshot by remember(controller) { mutableStateOf(controller.snapshot()) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
@@ -103,6 +88,11 @@ fun BrainExporterApp(
             subscription.close()
             mainHandler.removeCallbacksAndMessages(null)
         }
+    }
+    var updateState by remember(updateController) { mutableStateOf(updateController.state()) }
+    DisposableEffect(updateController) {
+        val subscription = updateController.addListener { next -> mainHandler.post { updateState = next } }
+        onDispose { subscription.close() }
     }
 
     val context = LocalContext.current
@@ -127,9 +117,55 @@ fun BrainExporterApp(
             runCatching { uriHandler.openUri(GITHUB_REPOSITORY) }
                 .onFailure { notice("无法打开 GitHub：${it.message}") }
         }
+        val openReleases: () -> Unit = {
+            runCatching { uriHandler.openUri(updateState.releaseUrl ?: GITHUB_RELEASES) }
+                .onFailure { notice("无法打开 Release：${it.message}") }
+        }
+        var dismissedUpdateVersion by rememberSaveable { mutableStateOf<String?>(null) }
+        var dismissedInstallVersion by rememberSaveable { mutableStateOf<String?>(null) }
 
         LaunchedEffect(playback) {
             if (playback.phase == PlaybackPhase.ERROR) snackbar.showSnackbar(playback.message)
+        }
+
+        if (updateState.phase == UpdatePhase.AVAILABLE &&
+            updateState.availableVersion != dismissedUpdateVersion
+        ) {
+            AlertDialog(
+                onDismissRequest = { dismissedUpdateVersion = updateState.availableVersion },
+                title = { Text("发现 v${updateState.availableVersion}") },
+                text = { Text("GitHub Release 已发布新版本。可直接交给系统下载器下载 APK，完成后进入 Android 安装流程。") },
+                confirmButton = {
+                    Button(onClick = {
+                        dismissedUpdateVersion = updateState.availableVersion
+                        updateController.downloadUpdate()
+                    }) { Text("下载更新") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = openReleases) { Text("查看 Release") }
+                        TextButton(onClick = { dismissedUpdateVersion = updateState.availableVersion }) { Text("稍后") }
+                    }
+                },
+            )
+        }
+        if (updateState.phase == UpdatePhase.READY_TO_INSTALL &&
+            updateState.availableVersion != dismissedInstallVersion
+        ) {
+            AlertDialog(
+                onDismissRequest = { dismissedInstallVersion = updateState.availableVersion },
+                title = { Text("更新已下载") },
+                text = { Text(updateState.message) },
+                confirmButton = {
+                    Button(onClick = {
+                        dismissedInstallVersion = updateState.availableVersion
+                        updateController.installDownloadedUpdate()
+                    }) { Text("安装更新") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { dismissedInstallVersion = updateState.availableVersion }) { Text("稍后") }
+                },
+            )
         }
 
         ModalNavigationDrawer(
@@ -138,12 +174,13 @@ fun BrainExporterApp(
                 ModalDrawerSheet(drawerContainerColor = Panel, drawerContentColor = TextPrimary) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 24.dp)) {
                         Text("BrainExporter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("开放式脑电采集与监测 · v0.1.0", color = Cyan, style = MaterialTheme.typography.labelSmall)
+                        Text("开放式脑电采集与监测 · v0.2.0", color = Cyan, style = MaterialTheme.typography.labelSmall)
                         Spacer(Modifier.height(22.dp))
                         DrawerEntry("◉", "专注与休息") { page = 0; scope.launch { drawerState.close() } }
                         DrawerEntry("∿", "实时信号监测") { page = 1; scope.launch { drawerState.close() } }
-                        DrawerEntry("♫", "在线音频设置") { page = 2; scope.launch { drawerState.close() } }
-                        DrawerEntry("♙", "本地账号") { page = 3; scope.launch { drawerState.close() } }
+                        DrawerEntry("◇", "处理模块") { page = 2; scope.launch { drawerState.close() } }
+                        DrawerEntry("♫", "在线音频设置") { page = 3; scope.launch { drawerState.close() } }
+                        DrawerEntry("♙", "本地账号") { page = 4; scope.launch { drawerState.close() } }
                         DrawerEntry("?", "帮助与关于") {
                             scope.launch { drawerState.close() }
                             openGithub()
@@ -183,8 +220,9 @@ fun BrainExporterApp(
                         listOf(
                             Triple("◉", "星球", 0),
                             Triple("∿", "监测", 1),
-                            Triple("♫", "音频", 2),
-                            Triple("♙", "我的", 3),
+                            Triple("◇", "模块", 2),
+                            Triple("♫", "音频", 3),
+                            Triple("♙", "我的", 4),
                         ).forEach { (symbol, label, index) ->
                             NavigationBarItem(
                                 selected = page == index,
@@ -200,6 +238,7 @@ fun BrainExporterApp(
                     0 -> PlanetHomeScreen(
                         playback = playback,
                         sources = audioSources,
+                        connectionPhase = snapshot.connection.phase,
                         onToggle = audioPlayer::toggle,
                         onStop = audioPlayer::stop,
                         modifier = Modifier.padding(padding),
@@ -211,7 +250,15 @@ fun BrainExporterApp(
                         recordingPermissionGate = recordingPermissionGate,
                         modifier = Modifier.padding(padding),
                     )
-                    2 -> AudioSettingsScreen(
+                    2 -> ModuleScreen(
+                        snapshot = snapshot,
+                        controller = controller,
+                        packages = modulePackages,
+                        onNotice = notice,
+                        onOpenMonitor = { page = 1 },
+                        modifier = Modifier.padding(padding),
+                    )
+                    3 -> AudioSettingsScreen(
                         sources = audioSources,
                         modifier = Modifier.padding(padding),
                         onSave = { next ->
@@ -234,134 +281,12 @@ fun BrainExporterApp(
                         modifier = Modifier.padding(padding),
                         onNotice = notice,
                         onOpenGithub = openGithub,
+                        updateState = updateState,
+                        updateController = updateController,
+                        onOpenRelease = openReleases,
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PlanetHomeScreen(
-    playback: AudioPlaybackState,
-    sources: AudioSources,
-    onToggle: (AudioMode, String) -> Unit,
-    onStop: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val modes = remember { AudioMode.entries }
-    val pagerState = rememberPagerState(pageCount = { modes.size })
-    LaunchedEffect(pagerState.currentPage) {
-        val visibleMode = modes[pagerState.currentPage]
-        if (playback.mode != null && playback.mode != visibleMode &&
-            playback.phase in setOf(PlaybackPhase.LOADING, PlaybackPhase.PLAYING)
-        ) {
-            onStop("点击星球开始")
-        }
-    }
-    HorizontalPager(
-        state = pagerState,
-        modifier = modifier.fillMaxSize().background(
-            Brush.radialGradient(
-                listOf(Color(0xFF101B35), Color(0xFF050A13), Ink),
-                radius = 1_100f,
-            ),
-        ),
-        verticalAlignment = Alignment.CenterVertically,
-        contentPadding = PaddingValues(horizontal = 28.dp),
-        pageSpacing = 28.dp,
-    ) { index ->
-        val mode = modes[index]
-        val phase = if (playback.mode == mode) playback.phase else PlaybackPhase.STOPPED
-        Planet(
-            mode = mode,
-            phase = phase,
-            onClick = { onToggle(mode, sources.forMode(mode)) },
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Composable
-private fun Planet(
-    mode: AudioMode,
-    phase: PlaybackPhase,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val transition = rememberInfiniteTransition(label = "${mode.name}-rotation")
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (mode == AudioMode.FOCUS) 14_000 else 22_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "planet-angle",
-    )
-    val rotating = phase == PlaybackPhase.PLAYING
-    val description = "${mode.title}星球，${when (phase) {
-        PlaybackPhase.PLAYING -> "正在播放，点击停止"
-        PlaybackPhase.LOADING -> "正在加载在线音乐"
-        PlaybackPhase.ERROR -> "播放失败，点击重试"
-        PlaybackPhase.STOPPED -> "已停止，点击播放"
-    }}；左右滑动切换星球"
-
-    Box(
-        modifier = modifier
-            .semantics { contentDescription = description; role = Role.Button }
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.size(310.dp)) {
-            val glow = when {
-                phase == PlaybackPhase.ERROR -> Danger
-                mode == AudioMode.FOCUS -> Cyan
-                else -> Color(0xFFA991FF)
-            }
-            drawCircle(
-                brush = Brush.radialGradient(
-                    0f to glow.copy(alpha = if (phase == PlaybackPhase.LOADING) 0.58f else 0.42f),
-                    0.42f to glow.copy(alpha = 0.12f),
-                    1f to Color.Transparent,
-                ),
-            )
-            drawArc(
-                color = glow.copy(alpha = 0.48f),
-                startAngle = 195f,
-                sweepAngle = 292f,
-                useCenter = false,
-                topLeft = Offset(size.width * 0.04f, size.height * 0.34f),
-                size = Size(size.width * 0.92f, size.height * 0.32f),
-                style = Stroke(width = 1.4.dp.toPx()),
-            )
-        }
-        Canvas(
-            Modifier.size(205.dp).graphicsLayer { rotationZ = if (rotating) rotation else 0f },
-        ) {
-            val colors = if (mode == AudioMode.FOCUS) {
-                listOf(Color(0xFF45E6CF), Color(0xFF28479D), Color(0xFF111B50), Color(0xFF050916))
-            } else {
-                listOf(Color(0xFFFFD3A2), Color(0xFFA991FF), Color(0xFF47538D), Color(0xFF12152C))
-            }
-            drawCircle(brush = Brush.radialGradient(colors, center = Offset(size.width * 0.34f, size.height * 0.28f)))
-            val detail = if (mode == AudioMode.FOCUS) Color(0xFF8CFFF0) else Color(0xFFFFE7CC)
-            drawOval(
-                color = detail.copy(alpha = 0.22f),
-                topLeft = Offset(size.width * 0.16f, size.height * 0.27f),
-                size = Size(size.width * 0.48f, size.height * 0.15f),
-            )
-            drawArc(
-                color = detail.copy(alpha = 0.34f),
-                startAngle = 208f,
-                sweepAngle = 228f,
-                useCenter = false,
-                topLeft = Offset(size.width * 0.11f, size.height * 0.47f),
-                size = Size(size.width * 0.78f, size.height * 0.28f),
-                style = Stroke(width = 5.dp.toPx()),
-            )
-            drawCircle(detail.copy(alpha = 0.28f), radius = size.minDimension * 0.07f, center = Offset(size.width * 0.72f, size.height * 0.31f))
-            drawCircle(detail.copy(alpha = 0.18f), radius = size.minDimension * 0.045f, center = Offset(size.width * 0.33f, size.height * 0.70f))
         }
     }
 }
@@ -426,6 +351,9 @@ private fun ProfileScreen(
     store: LocalAccountStore,
     onNotice: (String) -> Unit,
     onOpenGithub: () -> Unit,
+    updateState: AppUpdateState,
+    updateController: AppUpdateController,
+    onOpenRelease: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var currentUser by remember { mutableStateOf(store.currentUser()) }
@@ -522,8 +450,67 @@ private fun ProfileScreen(
                 ) { Text("退出登录") }
             }
         }
+        item {
+            UpdateCard(
+                state = updateState,
+                onCheck = updateController::checkForUpdates,
+                onDownload = updateController::downloadUpdate,
+                onInstall = updateController::installDownloadedUpdate,
+                onOpenRelease = onOpenRelease,
+            )
+        }
         item { ProfileEntry("隐私与 EEG 数据", "采集文件保存在 Documents/eegData") { onNotice("EEG CSV 仅写入手机 Documents/eegData，不会上传。") } }
         item { ProfileEntry("帮助与关于", GITHUB_REPOSITORY, onOpenGithub) }
+    }
+}
+
+@Composable
+private fun UpdateCard(
+    state: AppUpdateState,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onOpenRelease: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("应用更新 · v${state.currentVersion}", fontWeight = FontWeight.Bold)
+                    Text(state.message, color = if (state.phase == UpdatePhase.ERROR) Danger else TextMuted)
+                }
+                ConnectionDot(if (state.phase == UpdatePhase.UP_TO_DATE) ConnectionPhase.CONNECTED else ConnectionPhase.DISCONNECTED)
+            }
+            if (state.phase == UpdatePhase.DOWNLOADING) {
+                Box(Modifier.fillMaxWidth().height(5.dp).background(PanelSoft, CircleShape)) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth((state.progress ?: 8).coerceIn(1, 100) / 100f)
+                            .height(5.dp)
+                            .background(Cyan, CircleShape),
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                when (state.phase) {
+                    UpdatePhase.AVAILABLE -> Button(onClick = onDownload) { Text("下载 v${state.availableVersion}") }
+                    UpdatePhase.READY_TO_INSTALL -> Button(onClick = onInstall) { Text("安装更新") }
+                    UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING -> OutlinedButton(onClick = {}, enabled = false) {
+                        Text(if (state.phase == UpdatePhase.CHECKING) "检查中…" else "下载中…")
+                    }
+                    else -> OutlinedButton(onClick = onCheck) { Text("检查更新") }
+                }
+                TextButton(onClick = onOpenRelease) { Text("GitHub Release") }
+            }
+        }
     }
 }
 

@@ -49,9 +49,11 @@ import io.github.vexpaer.brainexporter.sdk.ConnectionPhase
 import io.github.vexpaer.brainexporter.sdk.DeviceDescriptor
 import io.github.vexpaer.brainexporter.sdk.ImpedanceQuality
 import io.github.vexpaer.brainexporter.sdk.ImpedanceResult
+import io.github.vexpaer.brainexporter.sdk.ModuleFeatureSeries
 import io.github.vexpaer.brainexporter.sdk.MonitorController
 import io.github.vexpaer.brainexporter.sdk.MonitorSnapshot
 import io.github.vexpaer.brainexporter.sdk.MonitorView
+import io.github.vexpaer.brainexporter.sdk.ProcessingModuleType
 
 @Composable
 internal fun DevicePanel(
@@ -227,95 +229,125 @@ internal fun MonitorScreen(
             }
         }
         item { MetricsStrip(snapshot) }
-        item { ViewSelector(snapshot.activeView, controller::setView) }
-        item {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("通道", fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (snapshot.activeView == MonitorView.TIME) {
-                        Text("时域去直流", color = TextMuted, style = MaterialTheme.typography.labelMedium)
-                        Switch(checked = demean, onCheckedChange = { demean = it })
-                    } else {
-                        Text(viewHint(snapshot.activeView), color = TextMuted, style = MaterialTheme.typography.labelMedium)
+        item { ModuleSourceSelector(snapshot, controller::selectModule) }
+
+        if (snapshot.selectedModuleType == ProcessingModuleType.EEG_TO_FEATURES) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(snapshot.signalSourceLabel, fontWeight = FontWeight.SemiBold)
+                    Text("模块特征输出 · 当前值与最近历史", color = TextMuted, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            if (snapshot.moduleFeatures.isEmpty()) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
+                        Text("开始 EEG 采集后，这里会显示模块输出的一个或多个特征值。", color = TextMuted, modifier = Modifier.padding(24.dp))
                     }
                 }
-            }
-        }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                items((1..8).toList()) { channel ->
-                    FilterChip(
-                        selected = channel in selectedChannels,
-                        onClick = {
-                            if (channel in selectedChannels) selectedChannels.remove(channel)
-                            else {
-                                selectedChannels.add(channel)
-                                selectedChannels.sort()
-                            }
-                        },
-                        label = { Text("CH $channel") },
-                        leadingIcon = {
-                            Box(Modifier.size(7.dp).background(ChannelColors[channel - 1], CircleShape))
-                        },
-                    )
+            } else {
+                items(snapshot.moduleFeatures, key = { it.key }) { series ->
+                    ModuleFeatureCard(series)
                 }
-                item {
-                    TextButton(onClick = {
-                        selectedChannels.clear()
-                        selectedChannels.addAll(1..8)
-                    }) { Text("全选") }
-                }
-                item { TextButton(onClick = { selectedChannels.clear() }) { Text("清空") } }
             }
-        }
-
-        if (snapshot.activeView == MonitorView.IMPEDANCE) {
             item {
-                ImpedanceToolbar(
-                    snapshot = snapshot,
-                    onMeasureAll = { impedanceRequest = 0 },
-                    onStop = controller::stopImpedance,
-                )
-            }
-            items(selectedChannels.toList(), key = { "impedance-$it" }) { channel ->
-                ImpedanceCard(
-                    channel = channel,
-                    result = snapshot.impedance.results.getOrNull(channel - 1),
-                    measuring = snapshot.impedance.running && snapshot.impedance.channel == channel,
-                    enabled = snapshot.connection.phase == ConnectionPhase.CONNECTED &&
-                        !snapshot.impedance.running && !snapshot.acquisition.active,
-                    onMeasure = { impedanceRequest = channel },
+                Text(
+                    "特征名称、单位、通道和历史序列由模块接口声明；界面无需为每个模块单独编写。",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(4.dp, 8.dp, 4.dp, 20.dp),
                 )
             }
         } else {
-            items(selectedChannels.toList(), key = { "${snapshot.activeView}-$it" }) { channel ->
-                SignalCard(
-                    channel = channel,
-                    snapshot = snapshot,
-                    analysis = analysisByChannel[channel],
-                    demean = demean,
-                )
-            }
-        }
-
-        if (selectedChannels.isEmpty()) {
+            item { ViewSelector(snapshot.activeView, controller::setView) }
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
-                    Text("请选择至少一个通道。", color = TextMuted, modifier = Modifier.padding(24.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("通道 · ${snapshot.signalSourceLabel}", fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (snapshot.activeView == MonitorView.TIME) {
+                            Text("时域去直流", color = TextMuted, style = MaterialTheme.typography.labelMedium)
+                            Switch(checked = demean, onCheckedChange = { demean = it })
+                        } else {
+                            Text(viewHint(snapshot.activeView), color = TextMuted, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
-        }
-        item {
-            Text(
-                "PSD/频谱使用 Hann 窗；丢包处线性插值并显示覆盖率。结果用于原型研发，不作为医疗诊断。",
-                color = TextMuted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(4.dp, 8.dp, 4.dp, 20.dp),
-            )
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items((1..8).toList()) { channel ->
+                        FilterChip(
+                            selected = channel in selectedChannels,
+                            onClick = {
+                                if (channel in selectedChannels) selectedChannels.remove(channel)
+                                else {
+                                    selectedChannels.add(channel)
+                                    selectedChannels.sort()
+                                }
+                            },
+                            label = { Text("CH $channel") },
+                            leadingIcon = {
+                                Box(Modifier.size(7.dp).background(ChannelColors[channel - 1], CircleShape))
+                            },
+                        )
+                    }
+                    item {
+                        TextButton(onClick = {
+                            selectedChannels.clear()
+                            selectedChannels.addAll(1..8)
+                        }) { Text("全选") }
+                    }
+                    item { TextButton(onClick = { selectedChannels.clear() }) { Text("清空") } }
+                }
+            }
+
+            if (snapshot.activeView == MonitorView.IMPEDANCE) {
+                item {
+                    ImpedanceToolbar(
+                        snapshot = snapshot,
+                        onMeasureAll = { impedanceRequest = 0 },
+                        onStop = controller::stopImpedance,
+                    )
+                }
+                items(selectedChannels.toList(), key = { "impedance-$it" }) { channel ->
+                    ImpedanceCard(
+                        channel = channel,
+                        result = snapshot.impedance.results.getOrNull(channel - 1),
+                        measuring = snapshot.impedance.running && snapshot.impedance.channel == channel,
+                        enabled = snapshot.connection.phase == ConnectionPhase.CONNECTED &&
+                            !snapshot.impedance.running && !snapshot.acquisition.active,
+                        onMeasure = { impedanceRequest = channel },
+                    )
+                }
+            } else {
+                items(selectedChannels.toList(), key = { "${snapshot.activeView}-$it" }) { channel ->
+                    SignalCard(
+                        channel = channel,
+                        snapshot = snapshot,
+                        analysis = analysisByChannel[channel],
+                        demean = demean,
+                    )
+                }
+            }
+
+            if (selectedChannels.isEmpty()) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
+                        Text("请选择至少一个通道。", color = TextMuted, modifier = Modifier.padding(24.dp))
+                    }
+                }
+            }
+            item {
+                Text(
+                    "PSD/频谱使用 Hann 窗；丢包处线性插值并显示覆盖率。结果用于原型研发，不作为医疗诊断。",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(4.dp, 8.dp, 4.dp, 20.dp),
+                )
+            }
         }
     }
 }
@@ -397,6 +429,74 @@ private fun MetricCard(label: String, value: String, detail: String) {
             Text(label, color = TextMuted, style = MaterialTheme.typography.labelSmall)
             Text(value, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, color = TextMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun ModuleSourceSelector(
+    snapshot: MonitorSnapshot,
+    onSelect: (String?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("监测数据源", fontWeight = FontWeight.SemiBold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChip(
+                    selected = snapshot.selectedModuleId == null,
+                    onClick = { onSelect(null) },
+                    label = { Text("原始脑电") },
+                )
+            }
+            items(snapshot.modules.filter { it.enabled }, key = { it.descriptor.id }) { module ->
+                FilterChip(
+                    selected = snapshot.selectedModuleId == module.descriptor.id,
+                    onClick = { onSelect(module.descriptor.id) },
+                    label = { Text(module.descriptor.displayName) },
+                    leadingIcon = {
+                        Box(
+                            Modifier.size(7.dp).background(
+                                if (module.descriptor.type == ProcessingModuleType.EEG_TO_EEG) Cyan else Color(0xFFA991FF),
+                                CircleShape,
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        if (snapshot.modules.none { it.enabled }) {
+            Text("可在“模块”页把处理模块添加到监测。", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun ModuleFeatureCard(series: ModuleFeatureSeries) {
+    val latest = series.values.lastOrNull()
+    val color = series.channel?.let { ChannelColors.getOrNull(it - 1) } ?: Color(0xFFA991FF)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(9.dp).background(color, CircleShape))
+                    Text(series.channel?.let { "CH $it · ${series.label}" } ?: series.label, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    latest?.let { "${formatFeatureValue(it)} ${series.unit}" } ?: "—",
+                    color = color,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            FeatureHistoryChart(series.values, color, Modifier.fillMaxWidth())
         }
     }
 }
@@ -563,3 +663,10 @@ private fun formatBytes(bytes: Long): String = when {
 private fun formatImpedance(kiloOhms: Double): String =
     if (kiloOhms >= 1_000) "%.2f MΩ".format(kiloOhms / 1_000.0)
     else "%.0f kΩ".format(kiloOhms)
+
+private fun formatFeatureValue(value: Double): String = when {
+    kotlin.math.abs(value) >= 1_000 -> "%.1fk".format(value / 1_000.0)
+    kotlin.math.abs(value) >= 100 -> "%.1f".format(value)
+    kotlin.math.abs(value) >= 10 -> "%.2f".format(value)
+    else -> "%.3f".format(value)
+}
