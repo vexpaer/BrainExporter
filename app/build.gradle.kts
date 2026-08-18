@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val signKeystorePath: String = providers.gradleProperty("SIGNING_KEYSTORE").orNull
+    ?: rootProject.file(".signing/brainexporter-release.jks").path
+val signKeyAlias: String = providers.gradleProperty("SIGNING_KEY_ALIAS").orNull ?: "brainexporter"
+val signKeyPassword: String? = run {
+    providers.gradleProperty("SIGNING_KEY_PASSWORD").orNull
+        ?: rootProject.file(".signing/key-password.txt").takeIf { it.exists() }?.readText()?.trim()
+}
+val signStorePassword: String? = providers.gradleProperty("SIGNING_STORE_PASSWORD").orNull
+    ?: rootProject.file(".signing/signing-password.txt").takeIf { it.exists() }?.readText()?.trim()
 
 android {
     namespace = "io.github.vexpaer.brainexporter.app"
@@ -12,8 +24,19 @@ android {
         applicationId = "io.github.vexpaer.brainexporter"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
+    }
+
+    signingConfigs {
+        if (signKeyPassword != null && signStorePassword != null) {
+            create("release") {
+                storeFile = file(signKeystorePath)
+                keyAlias = signKeyAlias
+                keyPassword = signKeyPassword
+                storePassword = signStorePassword
+            }
+        }
     }
 
     buildTypes {
@@ -27,6 +50,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

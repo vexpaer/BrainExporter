@@ -143,7 +143,7 @@ private fun ModuleContractOverview() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = PanelSoft),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(CardRadius),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("统一接口与自动可视化", fontWeight = FontWeight.Bold)
@@ -153,7 +153,7 @@ private fun ModuleContractOverview() {
                 detail = "保持采样索引与通道结构；自动获得时域、PSD、频谱和波段图。",
             )
             ContractRow(
-                color = Color(0xFFA991FF),
+                color = FeaturePurple,
                 title = "脑电 → 一个或多个特征值",
                 detail = "每个特征声明名称、单位和可选通道；自动生成数值卡与历史曲线。",
             )
@@ -181,11 +181,11 @@ private fun ModuleCard(
     onRemove: () -> Unit,
 ) {
     val descriptor = module.descriptor
-    val typeColor = if (descriptor.type == ProcessingModuleType.EEG_TO_EEG) Cyan else Color(0xFFA991FF)
+    val typeColor = if (descriptor.type == ProcessingModuleType.EEG_TO_EEG) Cyan else FeaturePurple
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(CardRadius),
     ) {
         Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(

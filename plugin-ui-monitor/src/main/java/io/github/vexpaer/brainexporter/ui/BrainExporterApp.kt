@@ -2,6 +2,13 @@ package io.github.vexpaer.brainexporter.ui
 
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,12 +25,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -53,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -174,14 +193,14 @@ fun BrainExporterApp(
                 ModalDrawerSheet(drawerContainerColor = Panel, drawerContentColor = TextPrimary) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 24.dp)) {
                         Text("BrainExporter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("开放式脑电采集与监测 · v0.2.0", color = Cyan, style = MaterialTheme.typography.labelSmall)
+                        Text("开放式脑电采集与监测 · v0.3.0", color = Cyan, style = MaterialTheme.typography.labelSmall)
                         Spacer(Modifier.height(22.dp))
-                        DrawerEntry("◉", "专注与休息") { page = 0; scope.launch { drawerState.close() } }
-                        DrawerEntry("∿", "实时信号监测") { page = 1; scope.launch { drawerState.close() } }
-                        DrawerEntry("◇", "处理模块") { page = 2; scope.launch { drawerState.close() } }
-                        DrawerEntry("♫", "在线音频设置") { page = 3; scope.launch { drawerState.close() } }
-                        DrawerEntry("♙", "本地账号") { page = 4; scope.launch { drawerState.close() } }
-                        DrawerEntry("?", "帮助与关于") {
+                        DrawerEntry(Icons.Filled.Public, "专注与休息") { page = 0; scope.launch { drawerState.close() } }
+                        DrawerEntry(Icons.Filled.GraphicEq, "实时信号监测") { page = 1; scope.launch { drawerState.close() } }
+                        DrawerEntry(Icons.Filled.Extension, "处理模块") { page = 2; scope.launch { drawerState.close() } }
+                        DrawerEntry(Icons.Filled.MusicNote, "在线音频设置") { page = 3; scope.launch { drawerState.close() } }
+                        DrawerEntry(Icons.Filled.AccountCircle, "本地账号") { page = 4; scope.launch { drawerState.close() } }
+                        DrawerEntry(Icons.Filled.Help, "帮助与关于") {
                             scope.launch { drawerState.close() }
                             openGithub()
                         }
@@ -206,8 +225,12 @@ fun BrainExporterApp(
                                 }
                             },
                             navigationIcon = {
-                                TextButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Text("☰", color = TextPrimary, style = MaterialTheme.typography.titleLarge)
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Menu,
+                                        contentDescription = "打开导航菜单",
+                                        tint = TextPrimary,
+                                    )
                                 }
                             },
                             actions = { ConnectionDot(snapshot.connection.phase); Spacer(Modifier.size(14.dp)) },
@@ -218,73 +241,84 @@ fun BrainExporterApp(
                 bottomBar = {
                     NavigationBar(containerColor = PanelSoft) {
                         listOf(
-                            Triple("◉", "星球", 0),
-                            Triple("∿", "监测", 1),
-                            Triple("◇", "模块", 2),
-                            Triple("♫", "音频", 3),
-                            Triple("♙", "我的", 4),
+                            Triple(Icons.Filled.Public, "星球", 0),
+                            Triple(Icons.Filled.GraphicEq, "监测", 1),
+                            Triple(Icons.Filled.Extension, "模块", 2),
+                            Triple(Icons.Filled.MusicNote, "音频", 3),
+                            Triple(Icons.Filled.AccountCircle, "我的", 4),
                         ).forEach { (symbol, label, index) ->
                             NavigationBarItem(
                                 selected = page == index,
                                 onClick = { page = index },
-                                icon = { Text(symbol) },
+                                icon = { Icon(imageVector = symbol, contentDescription = null) },
                                 label = { Text(label) },
                             )
                         }
                     }
                 },
             ) { padding ->
-                when (page) {
-                    0 -> PlanetHomeScreen(
-                        playback = playback,
-                        sources = audioSources,
-                        connectionPhase = snapshot.connection.phase,
-                        onToggle = audioPlayer::toggle,
-                        onStop = audioPlayer::stop,
-                        modifier = Modifier.padding(padding),
-                    )
-                    1 -> MonitorScreen(
-                        snapshot = snapshot,
-                        controller = controller,
-                        permissionGate = permissionGate,
-                        recordingPermissionGate = recordingPermissionGate,
-                        modifier = Modifier.padding(padding),
-                    )
-                    2 -> ModuleScreen(
-                        snapshot = snapshot,
-                        controller = controller,
-                        packages = modulePackages,
-                        onNotice = notice,
-                        onOpenMonitor = { page = 1 },
-                        modifier = Modifier.padding(padding),
-                    )
-                    3 -> AudioSettingsScreen(
-                        sources = audioSources,
-                        modifier = Modifier.padding(padding),
-                        onSave = { next ->
-                            runCatching { audioPreferences.save(next) }
-                                .onSuccess {
-                                    audioPlayer.stop()
-                                    audioSources = audioPreferences.load()
-                                    notice("在线音频地址已保存在本机。")
-                                }
-                                .onFailure { notice(it.message ?: "音频地址无效。") }
-                        },
-                        onRestore = {
-                            audioPlayer.stop()
-                            audioSources = audioPreferences.restoreDefaults()
-                            notice("已恢复默认在线音频。")
-                        },
-                    )
-                    else -> ProfileScreen(
-                        store = accountStore,
-                        modifier = Modifier.padding(padding),
-                        onNotice = notice,
-                        onOpenGithub = openGithub,
-                        updateState = updateState,
-                        updateController = updateController,
-                        onOpenRelease = openReleases,
-                    )
+                androidx.compose.animation.AnimatedContent(
+                    targetState = page,
+                    transitionSpec = {
+                        (fadeIn(tween(Motion.FastMs)) + scaleIn(
+                            initialScale = 0.98f,
+                            animationSpec = tween(Motion.FastMs),
+                        )).togetherWith(fadeOut(tween(Motion.FastMs)))
+                    },
+                    label = "page-transition",
+                ) { targetPage ->
+                    when (targetPage) {
+                        0 -> PlanetHomeScreen(
+                            playback = playback,
+                            sources = audioSources,
+                            connectionPhase = snapshot.connection.phase,
+                            onToggle = audioPlayer::toggle,
+                            onStop = audioPlayer::stop,
+                            modifier = Modifier.padding(padding),
+                        )
+                        1 -> MonitorScreen(
+                            snapshot = snapshot,
+                            controller = controller,
+                            permissionGate = permissionGate,
+                            recordingPermissionGate = recordingPermissionGate,
+                            modifier = Modifier.padding(padding),
+                        )
+                        2 -> ModuleScreen(
+                            snapshot = snapshot,
+                            controller = controller,
+                            packages = modulePackages,
+                            onNotice = notice,
+                            onOpenMonitor = { page = 1 },
+                            modifier = Modifier.padding(padding),
+                        )
+                        3 -> AudioSettingsScreen(
+                            sources = audioSources,
+                            modifier = Modifier.padding(padding),
+                            onSave = { next ->
+                                runCatching { audioPreferences.save(next) }
+                                    .onSuccess {
+                                        audioPlayer.stop()
+                                        audioSources = audioPreferences.load()
+                                        notice("在线音频地址已保存在本机。")
+                                    }
+                                    .onFailure { notice(it.message ?: "音频地址无效。") }
+                            },
+                            onRestore = {
+                                audioPlayer.stop()
+                                audioSources = audioPreferences.restoreDefaults()
+                                notice("已恢复默认在线音频。")
+                            },
+                        )
+                        else -> ProfileScreen(
+                            store = accountStore,
+                            modifier = Modifier.padding(padding),
+                            onNotice = notice,
+                            onOpenGithub = openGithub,
+                            updateState = updateState,
+                            updateController = updateController,
+                            onOpenRelease = openReleases,
+                        )
+                    }
                 }
             }
         }
@@ -334,7 +368,7 @@ private fun AudioSettingsScreen(
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(CardRadius)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("默认音乐鸣谢", fontWeight = FontWeight.Bold)
                     Text("Study And Relax / Ethereal Relaxation — Kevin MacLeod (incompetech.com)", color = TextMuted)
@@ -424,7 +458,12 @@ private fun ProfileScreen(
     ) {
         item {
             Box(Modifier.size(86.dp).background(Panel, CircleShape), contentAlignment = Alignment.Center) {
-                Text("♙", style = MaterialTheme.typography.displaySmall, color = Cyan)
+                Icon(
+                    imageVector = Icons.Filled.AccountCircle,
+                    contentDescription = "本地账号头像",
+                    tint = Cyan,
+                    modifier = Modifier.size(56.dp),
+                )
             }
         }
         item { Text(currentUser ?: "访客", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
@@ -475,7 +514,7 @@ private fun UpdateCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Panel),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(CardRadius),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -526,17 +565,21 @@ private fun ProfileEntry(label: String, detail: String, onClick: () -> Unit) {
                 Text(label)
                 Text(detail, color = TextMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text("›", color = TextMuted)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = TextMuted,
+            )
         }
     }
 }
 
 @Composable
-private fun DrawerEntry(symbol: String, label: String, onClick: () -> Unit) {
+private fun DrawerEntry(imageVector: ImageVector, label: String, onClick: () -> Unit) {
     NavigationDrawerItem(
         label = { Text(label) },
         selected = false,
-        icon = { Text(symbol, color = Cyan) },
+        icon = { Icon(imageVector = imageVector, contentDescription = null, tint = Cyan) },
         onClick = onClick,
         modifier = Modifier.padding(vertical = 2.dp),
     )

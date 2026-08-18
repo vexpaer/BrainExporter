@@ -17,11 +17,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.vexpaer.brainexporter.sdk.BarValue
 import io.github.vexpaer.brainexporter.sdk.LineSeries
 import io.github.vexpaer.brainexporter.sdk.SignalSample
@@ -29,24 +34,9 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-internal val ChannelColors = listOf(
-    Color(0xFF38D9C5),
-    Color(0xFF6A8DFF),
-    Color(0xFFFFBD5B),
-    Color(0xFFE57AFF),
-    Color(0xFF5BE68B),
-    Color(0xFFFF7C88),
-    Color(0xFF50B8FF),
-    Color(0xFFFF9D55),
-)
-
-private val BandColors = listOf(
-    Color(0xFF6786FF),
-    Color(0xFF48B8FF),
-    Color(0xFF38D9C5),
-    Color(0xFFFFBD5B),
-    Color(0xFFE57AFF),
-)
+/** 图表轴标签基准字号(sp):不低于 11,且随系统字体缩放。 */
+private const val AxisLabelTextSizeSp = 11f
+private const val AxisValueTextSizeSp = 10f
 
 @Composable
 internal fun TimeSignalChart(
@@ -91,7 +81,26 @@ internal fun TimeSignalChart(
             else path.lineTo(x, y)
             previousIndex = sample.index
         }
-        drawPath(path, ChannelColors[channel - 1], style = androidx.compose.ui.graphics.drawscope.Stroke(1.7.dp.toPx()))
+        val lineColor = ChannelColors[channel - 1]
+        // 辉光底衬:更宽的半透明同色描边,深色底上更醒目。
+        drawPath(path, lineColor.copy(alpha = 0.22f), style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round))
+        // 面积渐变:曲线下方向上淡出,给波形一点体积。
+        val area = Path().apply {
+            addPath(path)
+            lineTo(plot.left + plot.width, plot.top + plot.height)
+            lineTo(plot.left, plot.top + plot.height)
+            close()
+        }
+        drawPath(
+            path = area,
+            brush = Brush.verticalGradient(
+                0f to lineColor.copy(alpha = 0.14f),
+                1f to lineColor.copy(alpha = 0.0f),
+                startY = plot.top,
+                endY = plot.top + plot.height,
+            ),
+        )
+        drawPath(path, lineColor, style = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -133,7 +142,24 @@ internal fun FrequencyChart(
                 (range.second - range.first)).toFloat() * plot.height
             if (point == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, ChannelColors[channel - 1], style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()))
+        val lineColor = ChannelColors[channel - 1]
+        drawPath(path, lineColor.copy(alpha = 0.20f), style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round))
+        val area = Path().apply {
+            addPath(path)
+            lineTo(plot.left + plot.width, plot.top + plot.height)
+            lineTo(plot.left, plot.top + plot.height)
+            close()
+        }
+        drawPath(
+            path = area,
+            brush = Brush.verticalGradient(
+                0f to lineColor.copy(alpha = 0.12f),
+                1f to lineColor.copy(alpha = 0.0f),
+                startY = plot.top,
+                endY = plot.top + plot.height,
+            ),
+        )
+        drawPath(path, lineColor, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -162,7 +188,7 @@ internal fun BandPowerChart(
             drawRoundRect(
                 color = BandColors[index % BandColors.size],
                 topLeft = Offset(left, plot.top + plot.height - barHeight),
-                size = androidx.compose.ui.geometry.Size(width, barHeight),
+                size = Size(width, barHeight),
                 cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx()),
             )
             drawLabel(
@@ -171,7 +197,7 @@ internal fun BandPowerChart(
                 y = plot.top + plot.height - barHeight - 6.dp.toPx(),
                 align = Paint.Align.CENTER,
                 color = TextMuted,
-                textSize = 10.dp.toPx(),
+                textSizeSp = AxisValueTextSizeSp,
             )
         }
     }
@@ -204,11 +230,23 @@ internal fun FeatureHistoryChart(
             val y = plot.top + ((range.second - value) / (range.second - range.first)).toFloat() * plot.height
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
+        drawPath(path, color.copy(alpha = 0.18f), style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
+        val area = Path().apply {
+            addPath(path)
+            lineTo(plot.left + plot.width, plot.top + plot.height)
+            lineTo(plot.left, plot.top + plot.height)
+            close()
+        }
         drawPath(
-            path = path,
-            color = color,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()),
+            path = area,
+            brush = Brush.verticalGradient(
+                0f to color.copy(alpha = 0.12f),
+                1f to color.copy(alpha = 0.0f),
+                startY = plot.top,
+                endY = plot.top + plot.height,
+            ),
         )
+        drawPath(path, color, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -256,40 +294,53 @@ private fun DrawScope.drawChartAxes(
     val top = 17.dp.toPx()
     val bottom = 31.dp.toPx()
     val plot = PlotArea(left, top, size.width - left - right, size.height - top - bottom)
-    val gridStroke = 0.7.dp.toPx()
+    val gridStroke = 0.6.dp.toPx()
+    val gridColor = Grid.copy(alpha = 0.62f)
     for (tick in 0..4) {
         val y = plot.top + plot.height * tick / 4f
-        drawLine(Grid, Offset(plot.left, y), Offset(plot.left + plot.width, y), gridStroke)
+        val isBaseline = tick == 4
+        drawLine(
+            if (isBaseline) gridColor.copy(alpha = 0.95f) else gridColor,
+            Offset(plot.left, y),
+            Offset(plot.left + plot.width, y),
+            if (isBaseline) 1.1.dp.toPx() else gridStroke,
+        )
         val value = yMax - (yMax - yMin) * tick / 4.0
         drawLabel(
             text = formatAxis(value),
             x = plot.left - 7.dp.toPx(),
             y = y + 3.dp.toPx(),
             align = Paint.Align.RIGHT,
-            color = TextMuted,
-            textSize = 9.dp.toPx(),
+            color = if (isBaseline) TextMuted.copy(alpha = 0.85f) else TextMuted.copy(alpha = 0.55f),
+            textSizeSp = AxisValueTextSizeSp,
         )
     }
     xLabels.forEachIndexed { index, label ->
         val divisor = max(1, xLabels.lastIndex)
         val x = plot.left + plot.width * index / divisor
-        drawLine(Grid, Offset(x, plot.top), Offset(x, plot.top + plot.height), gridStroke)
+        drawLine(gridColor, Offset(x, plot.top), Offset(x, plot.top + plot.height), gridStroke)
         drawLabel(
             text = label,
             x = x,
             y = plot.top + plot.height + 18.dp.toPx(),
             align = Paint.Align.CENTER,
-            color = TextMuted,
-            textSize = 9.dp.toPx(),
+            color = TextMuted.copy(alpha = 0.8f),
+            textSizeSp = AxisLabelTextSizeSp,
         )
     }
+    drawLine(
+        gridColor.copy(alpha = 0.95f),
+        Offset(plot.left, plot.top),
+        Offset(plot.left, plot.top + plot.height),
+        1.0.dp.toPx(),
+    )
     drawLabel(
         text = yUnit,
         x = plot.left,
         y = 10.dp.toPx(),
         align = Paint.Align.LEFT,
-        color = TextMuted,
-        textSize = 9.dp.toPx(),
+        color = TextMuted.copy(alpha = 0.85f),
+        textSizeSp = AxisLabelTextSizeSp,
     )
     return plot
 }
@@ -300,7 +351,7 @@ private fun DrawScope.drawLabel(
     y: Float,
     align: Paint.Align,
     color: Color,
-    textSize: Float,
+    textSizeSp: Float,
 ) {
     drawContext.canvas.nativeCanvas.drawText(
         text,
@@ -308,7 +359,7 @@ private fun DrawScope.drawLabel(
         y,
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color.toArgb()
-            this.textSize = textSize
+            this.textSize = textSizeSp.sp.toPx()
             textAlign = align
         },
     )

@@ -11,3 +11,4 @@ captures/
 .signing/
 dist/
 ref/
+.impeccable/
