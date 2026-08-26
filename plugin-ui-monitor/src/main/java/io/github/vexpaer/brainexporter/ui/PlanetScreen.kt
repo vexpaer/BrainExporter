@@ -1,6 +1,5 @@
 package io.github.vexpaer.brainexporter.ui
 
-import android.provider.Settings
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Animatable
@@ -50,7 +49,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -88,7 +86,7 @@ internal fun PlanetHomeScreen(
             Brush.radialGradient(
                 0f to PlanetPalette.backgroundTop,
                 0.52f to PlanetPalette.backgroundMid,
-                1f to Ink,
+                1f to Void,
                 radius = 1_150f,
             ),
         ),
@@ -130,18 +128,18 @@ internal fun PlanetHomeScreen(
                             Box(
                                 Modifier
                                     .size(17.dp)
-                                    .background(Cyan.copy(alpha = 0.16f), CircleShape),
+                                    .background(OrbitBlue.copy(alpha = 0.16f), CircleShape),
                             )
                         }
                         Box(
                             Modifier
                                 .size(if (selected) 9.dp else 6.dp)
-                                .background(if (selected) Cyan else TextMuted.copy(alpha = 0.45f), CircleShape),
+                                .background(if (selected) OrbitBlue else MoonDust.copy(alpha = 0.45f), CircleShape),
                         )
                     }
                 }
             }
-            Text("左右滑动切换", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+            Text("左右滑动切换", color = MoonDust, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -153,7 +151,7 @@ private fun PlanetPage(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val reduceMotion = animationsDisabled()
+    val reduceMotion = rememberReduceMotion()
     val rotation = remember(mode) { Animatable(0f) }
     val orbitAngle = remember(mode) { Animatable(0f) }
     val rotating = phase == PlaybackPhase.PLAYING
@@ -178,7 +176,7 @@ private fun PlanetPage(
             orbitAngle.snapTo(start)
             orbitAngle.animateTo(
                 targetValue = start + 360f,
-                animationSpec = tween(durationMillis = 7_000, easing = LinearEasing),
+                animationSpec = tween(Motion.OrbitSatelliteMs.toInt(), easing = LinearEasing),
             )
         }
     }
@@ -243,12 +241,12 @@ private fun PlanetPage(
                 text = mode.title,
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary,
+                color = Starlight,
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = description,
-                color = TextMuted,
+                color = MoonDust,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
             )
@@ -271,8 +269,8 @@ private fun PlanetPage(
                 text = phaseText,
                 color = when (phase) {
                     PlaybackPhase.ERROR -> Danger
-                    PlaybackPhase.PLAYING -> Cyan
-                    else -> TextMuted
+                    PlaybackPhase.PLAYING -> OrbitBlue
+                    else -> MoonDust
                 },
                 style = MaterialTheme.typography.labelLarge,
             )
@@ -280,28 +278,17 @@ private fun PlanetPage(
     }
 }
 
-@Composable
-private fun animationsDisabled(): Boolean {
-    val context = LocalContext.current
-    val scale = remember(context) {
-        runCatching {
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)
-        }.getOrDefault(1f)
-    }
-    return scale == 0f
-}
-
-/** 缓慢漂移的星云光斑,给深空一个活着的底。 */
+/** 缓慢漂移的星云光斑:给深空一个活着的底,对比度极低不与星球抢眼。 */
 @Composable
 private fun NebulaLayer(modifier: Modifier = Modifier) {
-    val reduceMotion = animationsDisabled()
+    val reduceMotion = rememberReduceMotion()
     val drift = if (reduceMotion) 0f else {
         val transition = rememberInfiniteTransition(label = "nebula-drift")
         transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(60_000, easing = LinearEasing),
+                animation = tween(Motion.NebulaDriftMs.toInt(), easing = LinearEasing),
             ),
             label = "drift",
         ).value
@@ -309,12 +296,12 @@ private fun NebulaLayer(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width
         val h = size.height
-        // 主光斑:青(专注)与紫(休息)的中性混合,低频呼吸。
+        // 主光斑:蓝(专注)与紫(休息)的中性混合,低频呼吸。
         val t = drift
         val wobble = sin(t * 2f * PI.toFloat())
         val glow1 = Brush.radialGradient(
             colors = listOf(
-                PlanetPalette.focusGlow.copy(alpha = 0.055f),
+                PlanetPalette.focusGlow.copy(alpha = 0.042f),
                 Color.Transparent,
             ),
             center = Offset(w * (0.32f + 0.05f * wobble), h * 0.26f),
@@ -322,7 +309,7 @@ private fun NebulaLayer(modifier: Modifier = Modifier) {
         )
         val glow2 = Brush.radialGradient(
             colors = listOf(
-                PlanetPalette.restGlow.copy(alpha = 0.05f),
+                PlanetPalette.restGlow.copy(alpha = 0.038f),
                 Color.Transparent,
             ),
             center = Offset(w * (0.72f + 0.05f * cos(t * 2f * PI.toFloat())), h * 0.72f),
@@ -335,7 +322,7 @@ private fun NebulaLayer(modifier: Modifier = Modifier) {
 
 @Composable
 private fun StarField(modifier: Modifier = Modifier) {
-    val reduceMotion = animationsDisabled()
+    val reduceMotion = rememberReduceMotion()
     val stars = remember {
         List(88) { index ->
             val x = ((index * 73 + 19) % 101) / 101f
@@ -351,7 +338,7 @@ private fun StarField(modifier: Modifier = Modifier) {
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(5_600, easing = LinearEasing),
+                animation = tween(Motion.StarTwinkleMs, easing = LinearEasing),
             ),
             label = "twinkle",
         ).value
@@ -373,22 +360,12 @@ private data class StarSpec(val x: Float, val y: Float, val radius: Float, val p
 
 @Composable
 private fun EegConnectionBadge(connected: Boolean, modifier: Modifier = Modifier) {
-    val color = if (connected) PlanetPalette.connectedGreen else PlanetPalette.disconnectedGray
-    Row(
-        modifier = modifier
-            .background(PlanetPalette.badgeBackground, RoundedCornerShape(50))
-            .padding(horizontal = 11.dp, vertical = 7.dp)
-            .semantics { contentDescription = if (connected) "EEG 设备已连接" else "EEG 设备未连接" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(
-            text = if (connected) "EEG 已连接" else "EEG 未连接",
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-        )
-    }
+    StatusPill(
+        dotColor = if (connected) PlanetPalette.connectedGreen else PlanetPalette.disconnectedGray,
+        label = if (connected) "EEG 已连接" else "EEG 未连接",
+        textColor = if (connected) PlanetPalette.connectedGreen else MoonDust,
+        modifier = modifier,
+    )
 }
 
 private fun DrawScope.drawPlanet3d(
@@ -414,11 +391,11 @@ private fun DrawScope.drawPlanet3d(
     )
     val orbitStroke = Stroke(width = 1.35.dp.toPx(), cap = StrokeCap.Round)
 
-    // 大范围环境光晕
+    // 大范围环境光晕:克制的呼吸底光。
     drawCircle(
         brush = Brush.radialGradient(
-            0f to glow.copy(alpha = 0.31f * atmospherePulse),
-            0.48f to glow.copy(alpha = 0.10f),
+            0f to glow.copy(alpha = 0.20f * atmospherePulse),
+            0.48f to glow.copy(alpha = 0.07f),
             1f to Color.Transparent,
             center = center,
             radius = radius * 1.68f,
@@ -430,7 +407,7 @@ private fun DrawScope.drawPlanet3d(
     // 后部轨道(背侧一半)
     rotate(-9f, center) {
         drawArc(
-            color = glow.copy(alpha = 0.29f),
+            color = glow.copy(alpha = 0.22f),
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -503,8 +480,8 @@ private fun DrawScope.drawPlanet3d(
             brush = Brush.radialGradient(
                 0f to Color.Transparent,
                 0.62f to Color.Transparent,
-                0.82f to glow.copy(alpha = 0.10f * atmospherePulse),
-                1f to glow.copy(alpha = 0.28f * atmospherePulse),
+                0.82f to glow.copy(alpha = 0.08f * atmospherePulse),
+                1f to glow.copy(alpha = 0.22f * atmospherePulse),
                 center = center,
                 radius = radius,
             ),
@@ -538,13 +515,13 @@ private fun DrawScope.drawPlanet3d(
         )
     }
     drawCircle(
-        color = glow.copy(alpha = 0.55f),
+        color = glow.copy(alpha = 0.40f),
         radius = radius,
         center = center,
         style = Stroke(width = 1.15.dp.toPx()),
     )
     drawCircle(
-        color = glow.copy(alpha = 0.15f * atmospherePulse),
+        color = glow.copy(alpha = 0.10f * atmospherePulse),
         radius = radius + 4.dp.toPx(),
         center = center,
         style = Stroke(width = 5.dp.toPx()),
@@ -553,7 +530,7 @@ private fun DrawScope.drawPlanet3d(
     // 前部轨道(面向观察者的一半)
     rotate(-9f, center) {
         drawArc(
-            color = glow.copy(alpha = 0.72f),
+            color = glow.copy(alpha = 0.55f),
             startAngle = 0f,
             sweepAngle = 180f,
             useCenter = false,
