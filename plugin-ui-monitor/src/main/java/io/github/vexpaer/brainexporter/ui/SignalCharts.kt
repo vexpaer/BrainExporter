@@ -2,13 +2,12 @@ package io.github.vexpaer.brainexporter.ui
 
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -196,7 +195,7 @@ internal fun BandPowerChart(
                 x = left + width / 2f,
                 y = plot.top + plot.height - barHeight - 6.dp.toPx(),
                 align = Paint.Align.CENTER,
-                color = TextMuted,
+                color = MoonDust,
                 textSizeSp = AxisValueTextSizeSp,
             )
         }
@@ -252,19 +251,19 @@ internal fun FeatureHistoryChart(
 
 @Composable
 private fun EmptyChart(message: String, modifier: Modifier) {
-    Card(
-        modifier = modifier.height(190.dp),
-        colors = CardDefaults.cardColors(containerColor = PanelSoft.copy(alpha = 0.45f)),
-        shape = RoundedCornerShape(14.dp),
+    Box(
+        modifier = modifier
+            .height(190.dp)
+            .background(Obsidian.copy(alpha = 0.55f), ShapeM)
+            .border(1.dp, Hairline, ShapeM),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = message,
-                color = TextMuted,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
+        Text(
+            text = message,
+            color = MoonDust,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(16.dp),
+        )
     }
 }
 
@@ -311,7 +310,7 @@ private fun DrawScope.drawChartAxes(
             x = plot.left - 7.dp.toPx(),
             y = y + 3.dp.toPx(),
             align = Paint.Align.RIGHT,
-            color = if (isBaseline) TextMuted.copy(alpha = 0.85f) else TextMuted.copy(alpha = 0.55f),
+            color = if (isBaseline) MoonDust.copy(alpha = 0.85f) else MoonDust.copy(alpha = 0.55f),
             textSizeSp = AxisValueTextSizeSp,
         )
     }
@@ -324,7 +323,7 @@ private fun DrawScope.drawChartAxes(
             x = x,
             y = plot.top + plot.height + 18.dp.toPx(),
             align = Paint.Align.CENTER,
-            color = TextMuted.copy(alpha = 0.8f),
+            color = MoonDust.copy(alpha = 0.8f),
             textSizeSp = AxisLabelTextSizeSp,
         )
     }
@@ -339,7 +338,7 @@ private fun DrawScope.drawChartAxes(
         x = plot.left,
         y = 10.dp.toPx(),
         align = Paint.Align.LEFT,
-        color = TextMuted.copy(alpha = 0.85f),
+        color = MoonDust.copy(alpha = 0.85f),
         textSizeSp = AxisLabelTextSizeSp,
     )
     return plot
