@@ -37,7 +37,7 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
     private var currentLocation: String? = null
 
     override fun start(deviceName: String?): String {
-        check(!active) { "已有采集文件正在写入。" }
+        check(!active) { "A recording is already in progress." }
         val filename = "BrainExporter_EEG_${FILE_TIME.format(Instant.now())}.csv"
         val destination = createDestination(filename)
         try {
@@ -60,7 +60,7 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
         } catch (failure: Exception) {
             runCatching { destination.writer.close() }
             destination.uri?.let { runCatching { resolver.delete(it, null, null) } }
-            throw IllegalStateException("无法创建 EEG 记录：${failure.message}", failure)
+            throw IllegalStateException("Could not create EEG recording: ${failure.message}", failure)
         }
         return currentLocation!!
     }
@@ -83,7 +83,7 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
                     }
                 }
             } catch (failure: Exception) {
-                asynchronousFailure = IllegalStateException("写入 EEG 数据失败：${failure.message}", failure)
+                asynchronousFailure = IllegalStateException("Failed to write EEG data: ${failure.message}", failure)
             }
         }
     }
@@ -103,7 +103,7 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
             finalizeMediaStoreEntry()
             asynchronousFailure?.let { throw it }
         } catch (failure: Exception) {
-            throw IllegalStateException("无法完成 EEG 文件：${failure.cause?.message ?: failure.message}", failure)
+            throw IllegalStateException("Could not finalize EEG file: ${failure.cause?.message ?: failure.message}", failure)
         } finally {
             mediaUri = null
             currentLocation = null
@@ -122,11 +122,11 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
             }
             val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             val uri = resolver.insert(collection, values)
-                ?: throw IllegalStateException("系统未能创建 Documents 文件。")
+                ?: throw IllegalStateException("Android could not create a Documents file.")
             val stream = resolver.openOutputStream(uri, "w")
                 ?: run {
                     resolver.delete(uri, null, null)
-                    throw IllegalStateException("系统未能打开 EEG 文件。")
+                    throw IllegalStateException("Android could not open the EEG file.")
                 }
             return Destination(BufferedWriter(OutputStreamWriter(stream, Charsets.UTF_8)), uri)
         }
@@ -134,7 +134,7 @@ class AndroidEegRecordingSink(context: Context) : EegRecordingSink {
         @Suppress("DEPRECATION")
         val documents = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
         val directory = File(documents, EEG_DIRECTORY)
-        check(directory.exists() || directory.mkdirs()) { "无法创建 ${directory.absolutePath}" }
+        check(directory.exists() || directory.mkdirs()) { "Could not create ${directory.absolutePath}" }
         return Destination(
             writer = BufferedWriter(OutputStreamWriter(FileOutputStream(File(directory, filename)), Charsets.UTF_8)),
             uri = null,

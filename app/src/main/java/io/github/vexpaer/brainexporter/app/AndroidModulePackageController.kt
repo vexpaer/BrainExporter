@@ -25,7 +25,7 @@ class AndroidModulePackageController(
         val descriptor = runtime.installModule(module)
         if (!preferences.edit().putString(descriptor.id, manifest).commit()) {
             runCatching { runtime.uninstallModule(descriptor.id) }
-            throw IllegalStateException("模块已验证，但无法保存到本机")
+            throw IllegalStateException("Module validated but could not be saved locally")
         }
         descriptor
     }

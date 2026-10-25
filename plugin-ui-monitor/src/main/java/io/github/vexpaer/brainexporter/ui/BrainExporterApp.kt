@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -78,11 +77,10 @@ const val GITHUB_REPOSITORY = "https://github.com/vexpaer/BrainExporter"
 const val GITHUB_RELEASES = "$GITHUB_REPOSITORY/releases/latest"
 
 private val NavItems = listOf(
-    OrbitalItem(Icons.Filled.Public, "星球"),
-    OrbitalItem(Icons.Filled.GraphicEq, "监测"),
-    OrbitalItem(Icons.Filled.Extension, "模块"),
-    OrbitalItem(Icons.Filled.MusicNote, "音频"),
-    OrbitalItem(Icons.Filled.AccountCircle, "我的"),
+    OrbitalItem(Icons.Filled.Public, "Home"),
+    OrbitalItem(Icons.Filled.GraphicEq, "Monitor"),
+    OrbitalItem(Icons.Filled.Extension, "Modules"),
+    OrbitalItem(Icons.Filled.AccountCircle, "Account"),
 )
 
 @Composable
@@ -110,14 +108,6 @@ fun BrainExporterApp(
 
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
-    val audioPreferences = remember(context) { AudioSourcePreferences(context) }
-    var audioSources by remember { mutableStateOf(audioPreferences.load()) }
-    val audioPlayer = remember(context) { OnlineAudioPlayer(context) }
-    var playback by remember { mutableStateOf(audioPlayer.state) }
-    DisposableEffect(audioPlayer) {
-        audioPlayer.setListener { playback = it }
-        onDispose { audioPlayer.close() }
-    }
     val accountStore = remember(context) { LocalAccountStore(context) }
 
     BrainExporterTheme {
@@ -127,36 +117,32 @@ fun BrainExporterApp(
         val notice: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
         val openGithub: () -> Unit = {
             runCatching { uriHandler.openUri(GITHUB_REPOSITORY) }
-                .onFailure { notice("无法打开 GitHub：${it.message}") }
+                .onFailure { notice("Could not open GitHub: ${it.message}") }
         }
         val openReleases: () -> Unit = {
             runCatching { uriHandler.openUri(updateState.releaseUrl ?: GITHUB_RELEASES) }
-                .onFailure { notice("无法打开 Release：${it.message}") }
+                .onFailure { notice("Could not open release: ${it.message}") }
         }
         var dismissedUpdateVersion by rememberSaveable { mutableStateOf<String?>(null) }
         var dismissedInstallVersion by rememberSaveable { mutableStateOf<String?>(null) }
-
-        LaunchedEffect(playback) {
-            if (playback.phase == PlaybackPhase.ERROR) snackbar.showSnackbar(playback.message)
-        }
 
         if (updateState.phase == UpdatePhase.AVAILABLE &&
             updateState.availableVersion != dismissedUpdateVersion
         ) {
             BrandAlertDialog(
                 onDismissRequest = { dismissedUpdateVersion = updateState.availableVersion },
-                title = "发现 v${updateState.availableVersion}",
-                confirmLabel = "下载更新",
+                title = "Version v${updateState.availableVersion}",
+                confirmLabel = "Download update",
                 onConfirm = {
                     dismissedUpdateVersion = updateState.availableVersion
                     updateController.downloadUpdate()
                 },
-                dismissLabel = "稍后",
+                dismissLabel = "Later",
                 onDismiss = { dismissedUpdateVersion = updateState.availableVersion },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-                        Text("GitHub Release 已发布新版本。可直接交给系统下载器下载 APK，完成后进入 Android 安装流程。")
-                        TextButton(onClick = openReleases) { Text("查看 Release") }
+                        Text("A new version is available on GitHub. Download the APK with Android's download manager.")
+                        TextButton(onClick = openReleases) { Text("View release") }
                     }
                 },
             )
@@ -166,13 +152,13 @@ fun BrainExporterApp(
         ) {
             BrandAlertDialog(
                 onDismissRequest = { dismissedInstallVersion = updateState.availableVersion },
-                title = "更新已下载",
-                confirmLabel = "安装更新",
+                title = "Update ready",
+                confirmLabel = "Install update",
                 onConfirm = {
                     dismissedInstallVersion = updateState.availableVersion
                     updateController.installDownloadedUpdate()
                 },
-                dismissLabel = "稍后",
+                dismissLabel = "Later",
                 onDismiss = { dismissedInstallVersion = updateState.availableVersion },
                 text = { Text(updateState.message) },
             )
@@ -217,11 +203,8 @@ fun BrainExporterApp(
             ) { targetPage ->
                 when (targetPage) {
                     0 -> PlanetHomeScreen(
-                        playback = playback,
-                        sources = audioSources,
                         connectionPhase = snapshot.connection.phase,
-                        onToggle = audioPlayer::toggle,
-                        onStop = audioPlayer::stop,
+                        onOpenMonitor = { page = 1 },
                         modifier = Modifier.padding(padding),
                     )
                     1 -> MonitorScreen(
@@ -238,24 +221,6 @@ fun BrainExporterApp(
                         onNotice = notice,
                         onOpenMonitor = { page = 1 },
                         modifier = Modifier.padding(padding),
-                    )
-                    3 -> AudioSettingsScreen(
-                        sources = audioSources,
-                        modifier = Modifier.padding(padding),
-                        onSave = { next ->
-                            runCatching { audioPreferences.save(next) }
-                                .onSuccess {
-                                    audioPlayer.stop()
-                                    audioSources = audioPreferences.load()
-                                    notice("在线音频地址已保存在本机。")
-                                }
-                                .onFailure { notice(it.message ?: "音频地址无效。") }
-                        },
-                        onRestore = {
-                            audioPlayer.stop()
-                            audioSources = audioPreferences.restoreDefaults()
-                            notice("已恢复默认在线音频。")
-                        },
                     )
                     else -> ProfileScreen(
                         store = accountStore,
@@ -335,71 +300,6 @@ private fun BrandTextField(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun AudioSettingsScreen(
-    sources: AudioSources,
-    onSave: (AudioSources) -> Unit,
-    onRestore: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var focusUrl by rememberSaveable(sources.focusUrl) { mutableStateOf(sources.focusUrl) }
-    var restUrl by rememberSaveable(sources.restUrl) { mutableStateOf(sources.restUrl) }
-    LazyColumn(
-        modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.L),
-        verticalArrangement = Arrangement.spacedBy(Spacing.M),
-    ) {
-        item {
-            PageHeader(
-                overline = "AUDIO",
-                title = "在线音频",
-                subtitle = "音乐在播放时从网络流式加载，不会打包进 APK。",
-            )
-        }
-        item {
-            BrandTextField(
-                label = "专注星球音频 URL",
-                value = focusUrl,
-                onValueChange = { focusUrl = it },
-                minLines = 3,
-                supportingText = "必须是可直接播放的 HTTPS 地址。",
-            )
-        }
-        item {
-            BrandTextField(
-                label = "休息星球音频 URL",
-                value = restUrl,
-                onValueChange = { restUrl = it },
-                minLines = 3,
-                supportingText = "必须是可直接播放的 HTTPS 地址。",
-            )
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
-                Button(onClick = { onSave(AudioSources(focusUrl.trim(), restUrl.trim())) }) {
-                    Text("保存")
-                }
-                OutlinedButton(onClick = onRestore) { Text("恢复默认") }
-            }
-        }
-        item {
-            InstrumentSurface(color = Obsidian) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.XXS)) {
-                    SectionLabel("CREDITS · 默认音乐鸣谢")
-                    Spacer(Modifier.height(Spacing.XXS))
-                    Text("Study And Relax / Ethereal Relaxation — Kevin MacLeod (incompetech.com)", color = MoonDust, style = MaterialTheme.typography.bodySmall)
-                    Text("Creative Commons Attribution 3.0", color = OrbitBlue, style = MaterialTheme.typography.labelMedium)
-                    Text("第三方地址可能失效；你可以替换为任何可直接播放的 HTTPS 音频地址。", color = MoonDust, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 我的：账号状态、更新、隐私与入口的清晰层级。
-// ---------------------------------------------------------------------------
-
-@Composable
 private fun ProfileScreen(
     store: LocalAccountStore,
     onNotice: (String) -> Unit,
@@ -419,11 +319,11 @@ private fun ProfileScreen(
     if (showAuth) {
         BrandAlertDialog(
             onDismissRequest = { showAuth = false },
-            title = if (registering) "注册本地账号" else "登录本地账号",
-            confirmLabel = if (registering) "注册" else "登录",
+            title = if (registering) "Create account" else "Sign in",
+            confirmLabel = if (registering) "Register" else "Sign in",
             onConfirm = {
                 val result = if (registering && password != confirmation) {
-                    AuthResult(false, "两次输入的密码不一致。")
+                    AuthResult(false, "Passwords do not match.")
                 } else if (registering) {
                     store.register(username, password)
                 } else {
@@ -437,19 +337,19 @@ private fun ProfileScreen(
                     showAuth = false
                 }
             },
-            dismissLabel = "取消",
+            dismissLabel = "Cancel",
             onDismiss = { showAuth = false },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-                    Text("账号数据只保存在本机，不会上传。")
+                    Text("Credentials stay on this device.")
                     BrandTextField(
-                        label = "账号",
+                        label = "Username",
                         value = username,
                         onValueChange = { username = it },
                         singleLine = true,
                     )
                     BrandTextField(
-                        label = "密码",
+                        label = "Password",
                         value = password,
                         onValueChange = { password = it },
                         singleLine = true,
@@ -457,7 +357,7 @@ private fun ProfileScreen(
                     )
                     if (registering) {
                         BrandTextField(
-                            label = "确认密码",
+                            label = "Confirm password",
                             value = confirmation,
                             onValueChange = { confirmation = it },
                             singleLine = true,
@@ -478,7 +378,7 @@ private fun ProfileScreen(
         item {
             PageHeader(
                 overline = "ACCOUNT",
-                title = "我的",
+                title = "Account",
                 subtitle = null,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -498,20 +398,20 @@ private fun ProfileScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.AccountCircle,
-                        contentDescription = "本地账号头像",
+                        contentDescription = "Local account avatar",
                         tint = OrbitBlue,
                         modifier = Modifier.size(52.dp),
                     )
                 }
                 Spacer(Modifier.height(Spacing.XXS))
                 Text(
-                    currentUser ?: "访客",
+                    currentUser ?: "Guest",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = Starlight,
                 )
                 Text(
-                    if (currentUser == null) "账号仅保存在这台设备" else "本地账号已登录",
+                    if (currentUser == null) "Stored on this device" else "Signed in locally",
                     color = MoonDust,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -523,29 +423,29 @@ private fun ProfileScreen(
                     Button(
                         onClick = { registering = false; showAuth = true },
                         modifier = Modifier.weight(1f),
-                    ) { Text("登录") }
+                    ) { Text("Sign in") }
                     OutlinedButton(
                         onClick = { registering = true; showAuth = true },
                         modifier = Modifier.weight(1f),
-                    ) { Text("注册") }
+                    ) { Text("Register") }
                 }
             }
         } else {
             item {
                 OutlinedButton(
-                    onClick = { store.logout(); currentUser = null; onNotice("已退出本地账号。") },
+                    onClick = { store.logout(); currentUser = null; onNotice("Signed out.") },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("退出登录") }
+                ) { Text("Sign out") }
             }
         }
         item { UpdateCard(updateState, updateController::checkForUpdates, updateController::downloadUpdate, updateController::installDownloadedUpdate, onOpenRelease) }
         item {
             InstrumentSurface(color = Obsidian, contentPadding = PaddingValues(0.dp)) {
-                ProfileEntry("隐私与 EEG 数据", "采集文件保存在 Documents/eegData") {
-                    onNotice("EEG CSV 仅写入手机 Documents/eegData，不会上传。")
+                ProfileEntry("EEG data & privacy", "Saved to Documents/eegData") {
+                    onNotice("EEG files stay in Documents/eegData. No cloud upload.")
                 }
                 HorizontalHairline()
-                ProfileEntry("帮助与关于", GITHUB_REPOSITORY, onOpenGithub)
+                ProfileEntry("GitHub & about", GITHUB_REPOSITORY, onOpenGithub)
             }
         }
     }
@@ -580,18 +480,18 @@ private fun UpdateCard(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SectionLabel("VERSION")
                     Text(
-                        "应用更新 · v${state.currentVersion}",
+                        "App version · v${state.currentVersion}",
                         color = Starlight,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
                 val (dot, label) = when (state.phase) {
-                    UpdatePhase.UP_TO_DATE -> Success to "已是最新"
-                    UpdatePhase.AVAILABLE -> SolarMetal to "有新版本"
-                    UpdatePhase.DOWNLOADING, UpdatePhase.READY_TO_INSTALL -> OrbitBlue to "待安装"
-                    UpdatePhase.ERROR -> Danger to "检查失败"
-                    else -> MoonDust to "未检查"
+                    UpdatePhase.UP_TO_DATE -> Success to "Up to date"
+                    UpdatePhase.AVAILABLE -> SolarMetal to "Update available"
+                    UpdatePhase.DOWNLOADING, UpdatePhase.READY_TO_INSTALL -> OrbitBlue to "Ready to install"
+                    UpdatePhase.ERROR -> Danger to "Check failed"
+                    else -> MoonDust to "Not checked"
                 }
                 StatusPill(dotColor = dot, label = label, textColor = if (state.phase == UpdatePhase.UP_TO_DATE) MoonDust else dot)
             }
@@ -612,12 +512,12 @@ private fun UpdateCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
                 when (state.phase) {
-                    UpdatePhase.AVAILABLE -> Button(onClick = onDownload) { Text("下载 v${state.availableVersion}") }
-                    UpdatePhase.READY_TO_INSTALL -> Button(onClick = onInstall) { Text("安装更新") }
+                    UpdatePhase.AVAILABLE -> Button(onClick = onDownload) { Text("Download v${state.availableVersion}") }
+                    UpdatePhase.READY_TO_INSTALL -> Button(onClick = onInstall) { Text("Install update") }
                     UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING -> OutlinedButton(onClick = {}, enabled = false) {
-                        Text(if (state.phase == UpdatePhase.CHECKING) "检查中…" else "下载中…")
+                        Text(if (state.phase == UpdatePhase.CHECKING) "Checking…" else "Downloading…")
                     }
-                    else -> OutlinedButton(onClick = onCheck) { Text("检查更新") }
+                    else -> OutlinedButton(onClick = onCheck) { Text("Check for updates") }
                 }
                 TextButton(onClick = onOpenRelease) { Text("GitHub Release") }
             }

@@ -21,7 +21,7 @@ class LocalAccountStore(context: Context) {
         val cleanName = username.trim()
         validate(cleanName, password)?.let { return AuthResult(false, it) }
         val key = accountKey(cleanName)
-        if (preferences.contains(key)) return AuthResult(false, "该本地账号已存在。")
+        if (preferences.contains(key)) return AuthResult(false, "This account already exists.")
 
         val salt = ByteArray(SALT_BYTES).also(SecureRandom()::nextBytes)
         val hash = derive(password, salt)
@@ -34,28 +34,28 @@ class LocalAccountStore(context: Context) {
             putString(key, record)
             putString(KEY_CURRENT_USER, cleanName)
         }
-        return AuthResult(true, "注册成功，账号仅保存在这台设备。", cleanName)
+        return AuthResult(true, "Account created on this device.", cleanName)
     }
 
     fun login(username: String, password: String): AuthResult {
         val cleanName = username.trim()
-        if (cleanName.isBlank() || password.isBlank()) return AuthResult(false, "请输入账号和密码。")
+        if (cleanName.isBlank() || password.isBlank()) return AuthResult(false, "Enter username and password.")
         val parts = preferences.getString(accountKey(cleanName), null)?.split('.')
-            ?: return AuthResult(false, "本机没有这个账号。")
-        if (parts.size != 3) return AuthResult(false, "本地账号数据已损坏。")
+            ?: return AuthResult(false, "Account not found on this device.")
+        if (parts.size != 3) return AuthResult(false, "Local account data is corrupted.")
         return try {
             val savedName = String(decode(parts[0]), Charsets.UTF_8)
             val salt = decode(parts[1])
             val expected = decode(parts[2])
             val actual = derive(password, salt)
             if (!MessageDigest.isEqual(expected, actual)) {
-                AuthResult(false, "密码不正确。")
+                AuthResult(false, "Incorrect password.")
             } else {
                 preferences.edit { putString(KEY_CURRENT_USER, savedName) }
-                AuthResult(true, "已登录本地账号。", savedName)
+                AuthResult(true, "Signed in.", savedName)
             }
         } catch (_: RuntimeException) {
-            AuthResult(false, "本地账号数据已损坏。")
+            AuthResult(false, "Local account data is corrupted.")
         }
     }
 
@@ -64,9 +64,9 @@ class LocalAccountStore(context: Context) {
     }
 
     private fun validate(username: String, password: String): String? = when {
-        username.length !in 3..32 -> "账号长度需要为 3–32 个字符。"
-        username.any { it.isISOControl() || it == '|' } -> "账号包含不支持的字符。"
-        password.length < 6 -> "密码至少需要 6 个字符。"
+        username.length !in 3..32 -> "Username must contain 3–32 characters."
+        username.any { it.isISOControl() || it == '|' } -> "Username contains unsupported characters."
+        password.length < 6 -> "Password must contain at least 6 characters."
         else -> null
     }
 

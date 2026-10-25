@@ -58,7 +58,7 @@ internal fun TimeSignalChart(
         }
     }
     if (prepared == null) {
-        EmptyChart("等待足够的时域数据", modifier)
+        EmptyChart("Waiting for waveform data", modifier)
         return
     }
 
@@ -111,14 +111,14 @@ internal fun FrequencyChart(
     modifier: Modifier = Modifier,
 ) {
     if (series == null || series.x.size < 2 || series.y.size != series.x.size) {
-        EmptyChart("正在积累连续分析窗口", modifier)
+        EmptyChart("Building analysis window", modifier)
         return
     }
     val validIndices = remember(series) {
         series.x.indices.filter { series.x[it] in 1.0..60.0 && series.y[it].isFinite() }
     }
     if (validIndices.size < 2) {
-        EmptyChart("等待足够的连续数据", modifier)
+        EmptyChart("Waiting for continuous data", modifier)
         return
     }
     val range = remember(series, isPsd) {
@@ -168,7 +168,7 @@ internal fun BandPowerChart(
     modifier: Modifier = Modifier,
 ) {
     if (bars.isEmpty()) {
-        EmptyChart("正在积累最近 5 秒数据", modifier)
+        EmptyChart("Collecting latest 5s", modifier)
         return
     }
     val yMax = min(100.0, max(20.0, (bars.maxOf { it.value } * 1.18)))
@@ -176,7 +176,7 @@ internal fun BandPowerChart(
         val plot = drawChartAxes(
             yMin = 0.0,
             yMax = yMax,
-            yUnit = "相对功率 %",
+            yUnit = "Relative power %",
             xLabels = bars.map { it.label },
         )
         val slot = plot.width / bars.size
@@ -209,7 +209,7 @@ internal fun FeatureHistoryChart(
     modifier: Modifier = Modifier,
 ) {
     if (values.size < 2) {
-        EmptyChart("等待更多特征输出", modifier.height(118.dp))
+        EmptyChart("Waiting for feature output", modifier.height(118.dp))
         return
     }
     val range = remember(values) {
@@ -221,7 +221,7 @@ internal fun FeatureHistoryChart(
             yMin = range.first,
             yMax = range.second,
             yUnit = "",
-            xLabels = listOf("历史", "现在"),
+            xLabels = listOf("History", "Now"),
         )
         val path = Path()
         values.forEachIndexed { index, value ->

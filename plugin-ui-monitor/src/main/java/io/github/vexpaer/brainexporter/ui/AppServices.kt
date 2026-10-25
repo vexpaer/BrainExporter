@@ -17,7 +17,7 @@ data class AppUpdateState(
     val phase: UpdatePhase = UpdatePhase.IDLE,
     val availableVersion: String? = null,
     val progress: Int? = null,
-    val message: String = "尚未检查更新",
+    val message: String = "Updates not checked",
     val releaseUrl: String? = null,
 )
 

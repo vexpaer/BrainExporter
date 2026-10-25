@@ -1,88 +1,72 @@
 # BrainExporter
 
-BrainExporter 是一个面向 RT-BCI / ADS1299 脑电设备的开源 Android 应用。它通过手机 BLE 直连采集板，提供 8 通道实时监测、频域分析、阻抗估算和本地 CSV 导出，并带有一个极简的专注/休息星球与在线音频层。
+**Live EEG. Minimal friction.**
 
-**下载地址： [GitHub Releases（最新版 APK）](https://github.com/vexpaer/BrainExporter/releases/latest)**
+An open-source Android workstation for **RT-BCI / ADS1299** acquisition, real-time EEG monitoring, signal processing and local CSV export.
 
-Release 列表：https://github.com/vexpaer/BrainExporter/releases
+[**Get the latest APK**](https://github.com/vexpaer/BrainExporter/releases/latest) · [Source code](https://github.com/vexpaer/BrainExporter) · [Processing modules](docs/MODULES.md)
 
-> 当前版本是研发原型，不是医疗器械。图表、波段功率和阻抗结果不可用于医学诊断。
+## At a glance
 
-## v0.4.0 功能
+| Acquisition | Analysis | Extensibility | Platform |
+| --- | --- | --- | --- |
+| 8 EEG channels · BLE · ~250 Hz | Time series · PSD · FFT · EEG bands | Importable validated processing modules | Native Kotlin · Jetpack Compose · Material 3 |
 
-- 全面重构为 Planetary Premium 设计系统：深空观测站式的精密仪器语言，全局统一 Void/Obsidian 深色表面、冰蓝/蓝紫品牌强调与 8/12/18/capsule 圆角节奏，废除青绿主色。
-- 主页双星球升级：专注（冰蓝）与休息（暖尘紫）两颗气质不同的行星，克制的光照、大气与轨道细节；EEG 连接状态为精致状态胶囊。
-- 监测页"由简入繁"：未连接时全屏只留一个扫描按钮，连接后整页沉浸式单画布脑电波形，采集主操作固定于底部操作坞，复杂控制收进底部面板。
-- 全应用导航重做为轻量悬浮轨道导航，移除重复抽屉；所有对话框、表单、开关纳入同一设计系统，无默认组件穿帮。
-- 图标体系保持 Material Icons；语义色、圆角、间距、动效、图表调色板全部集中单一主题文件；坐标轴标签 ≥11sp 并随系统字体缩放。
-- 既有功能（在线音频、自动更新、BLE 扫描、CSV 导出、8 通道分析、模块页、阻抗估算、本地账号）全部保留。
-- 在线音频设置：专注/休息 URL 可在本机修改，音频不会打包进 APK。
-- 应用启动时自动检查 GitHub Latest Release；发现新版本后可在应用内调用系统下载器直接下载 APK，并进入 Android 安装流程。“我的”页也支持手动检查、下载与安装。
-- Android BLE 扫描、设备选择、连接和断开，兼容 RT_BLE_AT 的 FFF0/FFF3/FFF4 以及 I6328A/I6329A 的 FFE0/FFE1/FFE2 透传。
-- 连接后手动“开始采集 / 停止采集”；CSV 写入手机公共 `Documents/eegData`。
-- 8 个独立、自动纵轴的 5 秒电压/时间图，以及 PSD、实时 FFT 频谱和 Delta/Theta/Alpha/Beta/Gamma 相对功率。
-- 新增“模块”页：可导入并持久化 `.be-module.json`，把模块添加到监测页并在“原始脑电 / 模块输出”之间切换。
-- 提供连续状态的 Butterworth 1–40 Hz 带通示例模块；其 `脑电→脑电` 输出可直接查看时域、PSD、频谱及波段图。
-- 提供 `脑电→一个或多个特征值` 稳定接口与窗口统计示例；界面会根据特征名称、单位和通道自动生成当前值卡片与历史曲线。
-- 逐通道或全部通道 ADS1299 交流阻抗估算；采集期间会禁用阻抗测量以避免混入测试电流数据。
-- 本地登录/注册：账号只存在当前设备，密码以随机盐 PBKDF2-SHA256 哈希保存，不接入服务器。
-- “帮助与关于”直接打开本 GitHub 仓库。
+## Designed around the signal
 
-## 使用
+BrainExporter transforms an Android phone into a portable EEG console.
 
-1. 安装 Release 中的 APK，并打开蓝牙。
-2. 在“监测”页扫描并连接 RT-BCI 设备。
-3. 连接成功后点击“开始采集”。Android 8/9 会在此时申请写入公共 Documents 的权限；Android 10+ 不需要传统存储权限。
-4. 点击“停止采集”完成 CSV 文件。文件名形如 `BrainExporter_EEG_20260812_183000_000.csv`。
+- **Connect.** Discover compatible RT-BCI BLE devices, including FFF0/FFF3/FFF4 and FFE0/FFE1/FFE2 UART profiles.
+- **Observe.** Inspect eight EEG channels with live voltage waveforms, spectral views, band-power analysis and impedance estimates.
+- **Record.** Start and stop acquisition, saving timestamped EEG samples to CSV locally.
+- **Extend.** Enable built-in signal processing or import a validated `.be-module.json` manifest. EEG-to-EEG and EEG-to-features modules share stable interfaces.
+- **Stay local.** EEG samples are not sent to a remote server.
 
-安装后应用会自动检查新 Release。Android 8+ 首次安装应用内下载的 APK 时，需要在系统页面允许 BrainExporter“安装未知应用”；返回应用后会继续打开安装器。Android 仍会校验新 APK 与已安装版本的签名是否一致。
+## Interface
 
-CSV 每行包含 `sample_index`、`packet_id`、`received_at_nanos` 和 8 个以 µV 为单位的通道值。开头的注释行记录 UTC 开始时间和设备名称。
+A deliberately minimal visual system: slowly drifting aurora lighting, quiet instrument panels and data-first monitoring. Navigation, selections and status changes use responsive, spring-like motion. Android's reduced-motion setting stops decorative loops.
 
-## 在线音频
+The app has four primary sections: **Home, Monitor, Modules and Account**. The EEG acquisition and export workflow remains the focus.
 
-默认音乐仅在运行时通过 HTTPS 加载，不包含在源码或 APK 中：
+## Quick start
 
-- 专注：Study And Relax — Kevin MacLeod
-- 休息：Ethereal Relaxation — Kevin MacLeod
+1. Install the [latest APK](https://github.com/vexpaer/BrainExporter/releases/latest) and enable Bluetooth.
+2. Open **Monitor**, scan and select your RT-BCI device.
+3. Choose **Start recording** to capture EEG. Android 8–9 will request storage permission when necessary.
+4. Stop recording to finalize the CSV in `Documents/eegData`.
 
-两首作品来自 [incompetech.com](https://incompetech.com/)，采用 [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/) 许可。第三方地址可能失效，可在应用的“音频”页替换为任意可直接播放的 HTTPS 音频地址。
+Files are named like `BrainExporter_EEG_20260812_183000_000.csv`. Columns include `sample_index`, `packet_id`, `received_at_nanos` and eight channel values in µV.
 
-## 模块结构
+## Architecture
 
-- `sdk-core`：稳定的数据模型与设备、算法、运行时及 `EegProcessingModule` 接口。
-- `platform-ble-android`：不包含 RT-BCI 协议知识的 Android BLE UART 传输层。
-- `plugin-device-rtbci`：UUID、33 字节帧解析、µV 标定、流控制、采样统计和阻抗命令。
-- `plugin-algorithm-basic`：Hann 窗、FFT、PSD、频谱、EEG 波段算法，以及带通/特征模块安全引擎。
-- `core-runtime`：连接设备、算法和记录器，维护会话状态并向 UI 发布快照。
-- `plugin-ui-monitor`：Compose 星球、设置、账号、设备和信号界面。
-- `app`：组装内置插件、处理 Android 权限并将 EEG CSV 写入公共 Documents。
+| Module | Responsibility |
+| --- | --- |
+| `sdk-core` | Stable device, algorithm and processing interfaces |
+| `platform-ble-android` | Android BLE UART transport |
+| `plugin-device-rtbci` | RT-BCI parsing, scaling, commands and impedance |
+| `plugin-algorithm-basic` | FFT, PSD, band power and validated processing engines |
+| `core-runtime` | Sessions, data flow, module state and snapshots |
+| `plugin-ui-monitor` | Compose UI, visualizations and navigation |
+| `app` | Application assembly, permissions and local CSV storage |
 
-替换耳机时，实现 `DevicePlugin` 并输出标准 `SignalSample` 即可复用运行时、算法和界面；替换算法时实现 `SignalAlgorithm`；其他平台可实现自己的 `EegRecordingSink`。
+## Development
 
-处理模块分为 `EEG_TO_EEG` 与 `EEG_TO_FEATURES`。源码模块实现 `EegProcessingModule`；声明式导入包使用版本化 JSON schema，只能调用应用内已实现并校验参数的安全引擎，不会执行外部 Dex/JAR。完整接口、格式及示例见 [模块文档](docs/MODULES.md) 与 [`examples/modules`](examples/modules)。
+Requires **JDK 17+** and **Android SDK 36**.
 
-## 构建
-
-要求：JDK 17+、Android SDK 36。Windows / PowerShell 7：
-
-```powershell
-$env:JAVA_HOME = 'E:\Android\AndroidStudio\jbr'
-.\gradlew.bat test assembleDebug
+```bash
+./gradlew --no-daemon test lint assembleDebug
 ```
 
-调试 APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。CI 也会在每次推送和 Pull Request 上执行测试与调试构建。
+CI runs tests, lint and assembly on pull requests. Debug APKs appear in `app/build/outputs/apk/debug/`.
 
-## 数据与隐私
+## Safety and privacy
 
-- EEG 数据只写入用户设备的 `Documents/eegData`，应用没有上传 EEG 的实现。
-- 本地账号没有找回密码或跨设备同步能力；卸载/清除应用数据会删除账号信息，但公共 Documents 中的 EEG 文件由用户自行管理。
-- 在线音频会让设备直接连接用户配置的音频服务器，对方可能按其隐私政策记录常规网络信息。
+**Research prototype — not a medical device.** Spectral features and impedance estimates are not diagnostic measurements.
 
-## 安全提示
+ADS1299 impedance testing injects approximately **6 nA at 31.2 Hz**. When electrodes are attached to a person, power the acquisition board from a battery or compliant isolated supply. Never connect worn electrodes to non-isolated USB on a mains-powered computer. Validate BLE packet loss, sampling time and calibration before a study.
 
-阻抗测试会向电极注入约 6 nA、31.2 Hz 交流测试电流。人体连接电极时必须使用电池或合规隔离供电，不得让佩戴中的采集板通过非隔离 USB 接入市电电脑。正式实验前应验证 BLE 丢包率、采样时序和阻抗标定。
+EEG recordings stay in `Documents/eegData`. Local account passwords are salted PBKDF2-SHA256 hashes on the device. GitHub release checks support in-app updates.
 
-## 许可
+## License
 
-BrainExporter 自身源码使用 [MIT License](LICENSE)。本地开发使用的厂商固件、迁移参考文件和采集样本不属于本项目许可范围，也不会提交到公开仓库。
+[MIT](LICENSE). Vendor firmware and third-party acquisition samples are not included.

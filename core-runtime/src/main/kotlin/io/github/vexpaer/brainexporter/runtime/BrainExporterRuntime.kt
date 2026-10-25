@@ -107,8 +107,8 @@ class BrainExporterRuntime(
             slot.enabled = enabled
             slot.clearOutput()
             runCatching { slot.module.reset() }
-                .onFailure { slot.error = it.message ?: "模块重置失败" }
-            slot.message = if (enabled) "已添加到监测，等待脑电数据" else "尚未添加到监测"
+                .onFailure { slot.error = it.message ?: "Module reset failed" }
+            slot.message = if (enabled) "Enabled · waiting for EEG data" else "Not enabled for monitoring"
             if (!enabled && selectedModuleId == moduleId) selectedModuleId = null
             analyses = emptyList()
         }
@@ -143,7 +143,7 @@ class BrainExporterRuntime(
         val removed = synchronized(stateLock) {
             val slot = moduleSlots[moduleId] ?: return
             require(slot.module.descriptor.origin == ProcessingModuleOrigin.IMPORTED) {
-                "内置模块不能移除"
+                "Built-in modules cannot be removed"
             }
             if (selectedModuleId == moduleId) selectedModuleId = null
             analyses = emptyList()
@@ -155,26 +155,26 @@ class BrainExporterRuntime(
 
     private fun registerModuleLocked(module: EegProcessingModule) {
         val descriptor = module.descriptor
-        require(descriptor.id.matches(MODULE_ID_PATTERN)) { "模块 ID 格式无效：${descriptor.id}" }
-        require(descriptor.id !in moduleSlots) { "模块 ${descriptor.id} 已安装" }
+        require(descriptor.id.matches(MODULE_ID_PATTERN)) { "Invalid module ID: ${descriptor.id}" }
+        require(descriptor.id !in moduleSlots) { "Module ${descriptor.id} is already installed" }
         moduleSlots[descriptor.id] = ModuleSlot(module)
     }
 
-    override fun scan() = runDeviceOperation("无法开始扫描") { device.scan() }
+    override fun scan() = runDeviceOperation("Could not start scanning") { device.scan() }
 
     override fun connect(deviceId: String) =
-        runDeviceOperation("无法连接设备") { device.connect(deviceId) }
+        runDeviceOperation("Could not connect to device") { device.connect(deviceId) }
 
     override fun disconnect() {
         if (synchronized(stateLock) { acquisition.active }) stopAcquisition()
-        runDeviceOperation("无法断开设备") { device.disconnect() }
+        runDeviceOperation("Could not disconnect device") { device.disconnect() }
     }
 
     override fun startAcquisition() {
         val currentConnection = synchronized(stateLock) { connection }
         if (currentConnection.phase != ConnectionPhase.CONNECTED) {
             synchronized(stateLock) {
-                acquisition = acquisition.copy(error = "请先连接脑电设备。", message = "无法开始采集")
+                acquisition = acquisition.copy(error = "Connect an EEG device first.", message = "Could not start recording")
             }
             publish()
             return
@@ -183,7 +183,7 @@ class BrainExporterRuntime(
         val sink = recordingSink
         if (sink == null) {
             synchronized(stateLock) {
-                acquisition = acquisition.copy(error = "当前主机未提供 EEG 文件存储。", message = "无法开始采集")
+                acquisition = acquisition.copy(error = "EEG file storage is unavailable on this device.", message = "Could not start recording")
             }
             publish()
             return
@@ -196,15 +196,15 @@ class BrainExporterRuntime(
                 metrics = StreamMetrics()
                 moduleSlots.values.forEach { slot ->
                     slot.clearOutput()
-                    slot.message = if (slot.enabled) "已添加到监测，等待脑电数据" else "尚未添加到监测"
+                    slot.message = if (slot.enabled) "Enabled · waiting for EEG data" else "Not enabled for monitoring"
                     runCatching { slot.module.reset() }
-                        .onFailure { slot.error = it.message ?: "模块重置失败" }
+                        .onFailure { slot.error = it.message ?: "Module reset failed" }
                 }
                 acquisition = AcquisitionState(
                     active = true,
                     startedAtEpochMillis = System.currentTimeMillis(),
                     fileLocation = location,
-                    message = "正在采集并保存到 $location",
+                    message = "Recording to $location",
                 )
             }
             device.startStreaming()
@@ -213,8 +213,8 @@ class BrainExporterRuntime(
             runCatching { sink.stop() }
             synchronized(stateLock) {
                 acquisition = AcquisitionState(
-                    message = "无法开始采集",
-                    error = failure.message ?: "创建 EEG 文件失败。",
+                    message = "Could not start recording",
+                    error = failure.message ?: "Could not create EEG file.",
                 )
             }
             publish()
@@ -226,15 +226,15 @@ class BrainExporterRuntime(
         if (!wasActive) return
         var failureMessage: String? = null
         runCatching { device.stopStreaming() }
-            .onFailure { failureMessage = it.message ?: "停止设备数据流失败。" }
+            .onFailure { failureMessage = it.message ?: "Could not stop device stream." }
         val finalLocation = runCatching { recordingSink?.stop() }
-            .onFailure { failureMessage = it.message ?: "关闭 EEG 文件失败。" }
+            .onFailure { failureMessage = it.message ?: "Could not close EEG file." }
             .getOrNull()
         synchronized(stateLock) {
             acquisition = acquisition.copy(
                 active = false,
                 fileLocation = finalLocation ?: acquisition.fileLocation,
-                message = if (failureMessage == null) "采集已停止，文件已保存" else "采集已停止，但保存存在问题",
+                message = if (failureMessage == null) "Recording stopped · file saved" else "Recording stopped · file save failed",
                 error = failureMessage,
             )
         }
@@ -242,10 +242,10 @@ class BrainExporterRuntime(
     }
 
     override fun startImpedance(channel: Int?) =
-        runDeviceOperation("无法开始阻抗测量") { device.startImpedance(channel) }
+        runDeviceOperation("Could not start impedance test") { device.startImpedance(channel) }
 
     override fun stopImpedance() =
-        runDeviceOperation("无法停止阻抗测量") { device.stopImpedance() }
+        runDeviceOperation("Could not stop impedance test") { device.stopImpedance() }
 
     private inline fun runDeviceOperation(prefix: String, operation: () -> Unit) {
         try {
@@ -258,7 +258,7 @@ class BrainExporterRuntime(
                     } else {
                         ConnectionPhase.ERROR
                     },
-                    message = "$prefix：${failure.message ?: "未知错误"}",
+                    message = "$prefix：${failure.message ?: "Unknown error"}",
                 )
             }
             publish()
@@ -281,7 +281,7 @@ class BrainExporterRuntime(
                 acquisition = acquisition.copy(
                     active = false,
                     fileLocation = finalLocation ?: acquisition.fileLocation,
-                    message = "设备连接中断，采集文件已关闭",
+                    message = "Device disconnected · recording closed",
                 )
             }
         }
@@ -293,7 +293,7 @@ class BrainExporterRuntime(
         var recordingError: String? = null
         if (shouldRecord) {
             runCatching { recordingSink?.append(samples) }
-                .onFailure { recordingError = it.message ?: "写入 EEG 文件失败。" }
+                .onFailure { recordingError = it.message ?: "Could not write EEG file." }
         }
         synchronized(stateLock) {
             samples.forEach(this.samples::addLast)
@@ -302,8 +302,8 @@ class BrainExporterRuntime(
                 runCatching { slot.module.process(samples, SAMPLE_RATE_HZ) }
                     .onSuccess { output -> applyModuleOutput(slot, output) }
                     .onFailure { failure ->
-                        slot.error = failure.message ?: "模块处理失败"
-                        slot.message = "处理已暂停，请移除后重新添加"
+                        slot.error = failure.message ?: "Module processing failed"
+                        slot.message = "Processing paused · remove and re-add the module"
                         slot.enabled = false
                         if (selectedModuleId == slot.module.descriptor.id) selectedModuleId = null
                     }
@@ -323,18 +323,18 @@ class BrainExporterRuntime(
         when (output) {
             is EegSignalModuleOutput -> {
                 require(slot.module.descriptor.type == ProcessingModuleType.EEG_TO_EEG) {
-                    "模块声明与 EEG 输出不一致"
+                    "Module declaration does not match EEG output"
                 }
                 output.samples.forEach(slot.signalSamples::addLast)
                 trimSignalBuffer(slot.signalSamples)
-                slot.message = "已处理 ${slot.processedSamples + output.samples.size} 个采样点"
+                slot.message = "Processed ${slot.processedSamples + output.samples.size} samples"
                 slot.processedSamples += output.samples.size
                 slot.error = null
             }
 
             is FeatureModuleOutput -> {
                 require(slot.module.descriptor.type == ProcessingModuleType.EEG_TO_FEATURES) {
-                    "模块声明与特征输出不一致"
+                    "Module declaration does not match feature output"
                 }
                 output.values.filter { it.value.isFinite() }.forEach { feature ->
                     val series = slot.features.getOrPut(feature.key) {
@@ -347,7 +347,7 @@ class BrainExporterRuntime(
                     while (series.values.size > MAX_FEATURE_POINTS) series.values.removeFirst()
                 }
                 if (output.values.isNotEmpty()) {
-                    slot.message = "已更新 ${output.values.size} 个特征值"
+                    slot.message = "Updated ${output.values.size} features"
                     slot.error = null
                 }
             }
@@ -409,7 +409,7 @@ class BrainExporterRuntime(
                 },
                 selectedModuleId = selectedDescriptor?.id,
                 selectedModuleType = selectedDescriptor?.type,
-                signalSourceLabel = selectedDescriptor?.displayName ?: "原始脑电",
+                signalSourceLabel = selectedDescriptor?.displayName ?: "Raw EEG",
                 moduleFeatures = selected?.features?.map { (key, accumulator) ->
                     ModuleFeatureSeries(
                         key = key,
@@ -459,7 +459,7 @@ class BrainExporterRuntime(
 
     private class ModuleSlot(val module: EegProcessingModule) {
         var enabled: Boolean = false
-        var message: String = "尚未添加到监测"
+        var message: String = "Not enabled for monitoring"
         var error: String? = null
         var processedSamples: Long = 0
         val signalSamples = ArrayDeque<SignalSample>()

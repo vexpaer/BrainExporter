@@ -60,24 +60,24 @@ internal fun ModuleScreen(
                 onSuccess = packages::importManifest,
                 onFailure = { Result.failure(it) },
             )
-        result.onSuccess { descriptor -> onNotice("已导入 ${descriptor.displayName}") }
-            .onFailure { failure -> onNotice("导入失败：${failure.message ?: "模块包无效"}") }
+        result.onSuccess { descriptor -> onNotice("Imported ${descriptor.displayName}") }
+            .onFailure { failure -> onNotice("Import failed：${failure.message ?: "Invalid module package"}") }
     }
 
     removalRequest?.let { module ->
         BrandAlertDialog(
             onDismissRequest = { removalRequest = null },
-            title = "移除 ${module.descriptor.displayName}？",
-            confirmLabel = "移除",
+            title = "Remove ${module.descriptor.displayName}?",
+            confirmLabel = "Remove",
             onConfirm = {
                 packages.uninstall(module.descriptor.id)
-                    .onSuccess { onNotice("模块已移除") }
-                    .onFailure { onNotice("移除失败：${it.message}") }
+                    .onSuccess { onNotice("Module removed") }
+                    .onFailure { onNotice("Could not remove：${it.message}") }
                 removalRequest = null
             },
-            dismissLabel = "取消",
+            dismissLabel = "Cancel",
             onDismiss = { removalRequest = null },
-            text = { Text("将从应用内移除这个导入模块。已有 EEG CSV 不受影响。") },
+            text = { Text("This removes the imported module. Existing EEG files are unaffected.") },
         )
     }
 
@@ -95,18 +95,17 @@ internal fun ModuleScreen(
                 Column(Modifier.weight(1f)) {
                     PageHeader(
                         overline = "MODULES",
-                        title = "处理模块",
-                        subtitle = "导入、启用并在监测页查看实时输出",
+                        title = "Processing modules",
+                        subtitle = "Manage signal pipelines",
                     )
                 }
                 OutlinedButton(onClick = {
                     importer.launch(
                         arrayOf("application/json", "text/json", "text/plain", "application/octet-stream"),
                     )
-                }) { Text("导入模块") }
+                }) { Text("Import module") }
             }
         }
-        item { ModuleContractOverview() }
         items(snapshot.modules, key = { it.descriptor.id }) { module ->
             ModuleCard(
                 module = module,
@@ -125,20 +124,13 @@ internal fun ModuleScreen(
                 InstrumentSurface(color = Obsidian) {
                     EmptyState(
                         icon = Icons.Filled.Extension,
-                        title = "尚未安装模块。",
-                        detail = "导入 .be-module.json 后，可把处理结果加入监测页查看。",
+                        title = "No modules installed.",
+                        detail = "Import a module to view its output in Monitor.",
                     )
                 }
             }
         }
-        item {
-            Text(
-                "导入格式为 .be-module.json。应用只运行已实现并经过参数校验的安全引擎，不执行外部 Dex/JAR。",
-                color = MoonDust.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(vertical = Spacing.XS),
-            )
-        }
+
     }
 }
 
@@ -146,16 +138,16 @@ internal fun ModuleScreen(
 private fun ModuleContractOverview() {
     InstrumentSurface {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-            SectionLabel("统一接口与自动可视化")
+            SectionLabel("SIGNAL PIPELINES")
             ContractRow(
                 color = OrbitBlue,
-                title = "脑电 → 脑电",
-                detail = "保持采样索引与通道结构；自动获得时域、PSD、频谱和波段图。",
+                title = "EEG → EEG",
+                detail = "Filtered waveforms, spectra and band power.",
             )
             ContractRow(
                 color = LunarViolet,
-                title = "脑电 → 一个或多个特征值",
-                detail = "每个特征声明名称、单位和可选通道；自动生成数值卡与历史曲线。",
+                title = "EEG → Features",
+                detail = "Live features and history.",
             )
         }
     }
@@ -197,7 +189,7 @@ private fun ModuleCard(
                 Column(Modifier.weight(1f)) {
                     Text(descriptor.displayName, color = Starlight, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "v${descriptor.version} · ${if (descriptor.origin == ProcessingModuleOrigin.BUILT_IN) "内置" else "已导入"}",
+                        "v${descriptor.version} · ${if (descriptor.origin == ProcessingModuleOrigin.BUILT_IN) "Built in" else "Imported"}",
                         color = MoonDust,
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -207,7 +199,7 @@ private fun ModuleCard(
             Text(descriptor.description, color = MoonDust, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XXS), verticalAlignment = Alignment.CenterVertically) {
                 ModuleTag(
-                    if (descriptor.type == ProcessingModuleType.EEG_TO_EEG) "EEG → EEG" else "EEG → 特征",
+                    if (descriptor.type == ProcessingModuleType.EEG_TO_EEG) "EEG → EEG" else "EEG → Features",
                     typeColor,
                 )
                 ModuleTag(descriptor.engine, MoonDust)
@@ -220,9 +212,9 @@ private fun ModuleCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
-                Button(onClick = onVisualize) { Text(if (selected) "正在监测" else "在监测中查看") }
+                Button(onClick = onVisualize) { Text(if (selected) "Viewing" else "View in Monitor") }
                 if (descriptor.origin == ProcessingModuleOrigin.IMPORTED) {
-                    OutlinedButton(onClick = onRemove) { Text("移除") }
+                    OutlinedButton(onClick = onRemove) { Text("Remove") }
                 }
             }
         }
@@ -244,7 +236,7 @@ private fun ModuleTag(text: String, color: androidx.compose.ui.graphics.Color) {
 
 private fun readModuleManifest(context: Context, uri: Uri): String {
     val input = context.contentResolver.openInputStream(uri)
-        ?: throw IllegalArgumentException("无法读取所选文件")
+        ?: throw IllegalArgumentException("Unable to read selected file")
     return input.bufferedReader().use { reader ->
         val text = StringBuilder()
         val buffer = CharArray(4_096)
@@ -252,7 +244,7 @@ private fun readModuleManifest(context: Context, uri: Uri): String {
             val count = reader.read(buffer)
             if (count < 0) break
             text.append(buffer, 0, count)
-            require(text.length <= 65_536) { "模块清单不能超过 64 KiB" }
+            require(text.length <= 65_536) { "Module manifest must be under 64 KiB" }
         }
         text.toString()
     }

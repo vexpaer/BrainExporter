@@ -47,6 +47,8 @@ internal val OrbitBlue = Color(0xFF7F98FF)
 
 /** 次级品牌强调：蓝紫。 */
 internal val LunarViolet = Color(0xFF9B8CFF)
+internal val AuroraRose = Color(0xFFE2A3CD)
+internal val AuroraAmber = Color(0xFFC4A2DF)
 
 /** 极少量暖金属强调。 */
 internal val SolarMetal = Color(0xFFD2AD70)

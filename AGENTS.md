@@ -1,35 +1,20 @@
-# BrainExporter Agent Rules
+# BrainExporter — Contributor & Agent Guide
 
-Before any UI redesign work:
+## Product
+BrainExporter is a native Kotlin / Jetpack Compose Android workstation for RT-BCI / ADS1299 EEG acquisition. Preserve module boundaries, device protocols, processing logic and the local CSV format.
 
-1. Read `PRODUCT.md`, `DESIGN.md`, and `docs/PLANET_UI_REDESIGN_AGENT.md` completely.
-2. Run `bash scripts/setup-agent-skills.sh codex` once on the development machine.
-3. For visual/UX decisions, explicitly use the `ui-ux-pro-max` skill.
-4. For Jetpack Compose implementation/review, explicitly use the `modern-jetpack-compose` skill.
+## Language and visual direction
+- All user-facing UI copy and error messages must be **English**.
+- Primary navigation: **Home · Monitor · Modules · Account**. Do not reintroduce the audio tab or home-screen playback controls.
+- Keep the dark-only aurora visual system: four blended drifting lights, subtle grain, and data-first monitoring. Use a quiet/static backdrop under live charts.
+- Inspired by Arc UI's motion principles: animate state changes and spatial transitions with springs and responsive easing. Do not install React packages into Compose.
+- Respect Android reduced-motion settings. Decorative loops stop when motion is reduced or the screen is not visible.
+- Maintain accessible semantics, minimum 48dp touch targets and readable measurement units.
 
-## Non-negotiable product constraints
+## Engineering constraints
+- Never add cloud EEG upload, analytics, hidden network calls or runtime downloads of decorative assets.
+- Impedance measurement must remain disabled during EEG recording.
+- Do not change packet parsing, timestamps, file semantics, permission flows or the validated module contract for visual updates.
 
-- UI/UX may be completely redesigned, but existing product capabilities and data behavior must not regress.
-- Keep Kotlin + Jetpack Compose + Material 3 and the current modular architecture. Do not replace the stack.
-- Do not move EEG data to cloud storage, add analytics, or add hidden network behavior.
-- Keep the app dark-only. Do not enable Dynamic Color or add a light theme.
-- Green/teal must not be a brand/primary color. A restrained success/connected status color is allowed only for tiny semantic indicators.
-- Preserve Chinese UI copy unless a wording change is clearly needed for hierarchy or clarity.
-
-## Quality gate
-
-Before pushing a redesign branch, run:
-
-```bash
-./gradlew --no-daemon test lint assembleDebug
-```
-
-After opening/updating the PR, inspect GitHub Actions and fix failures yourself. Use `gh run watch` and `gh run view --log-failed` when available. Do not hand a red CI run back to the user.
-
-## Release / history policy
-
-- `v0.3.0` already exists as a published GitHub Release and tag. Never delete, move, or recreate it.
-- The next redesign release target is `v0.4.0` / `versionCode = 4` unless the user explicitly chooses another unused version.
-- The final redesign PR must be exactly one commit ahead of its base before merge. Work locally without committing, or squash/reset before the final push.
-- Merge the final redesign PR with squash. Tag the resulting main commit only after CI is green; the tag triggers the release workflow.
-- Do not create a tag or GitHub Release until all release gates in `docs/PLANET_UI_REDESIGN_AGENT.md` pass.
+## Verification
+Run `./gradlew --no-daemon test lint assembleDebug`. Inspect GitHub Actions and fix failures. Prefer one final commit per redesign PR. Release tags and signing secrets are out of scope.

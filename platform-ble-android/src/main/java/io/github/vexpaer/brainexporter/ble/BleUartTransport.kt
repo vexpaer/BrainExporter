@@ -77,16 +77,16 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             stopScanInternal(notify = false)
             val currentAdapter = adapter
             if (currentAdapter == null) {
-                listener?.onError("此设备不支持蓝牙。")
+                listener?.onError("Bluetooth is not supported on this device.")
                 return@post
             }
             if (!currentAdapter.isEnabled) {
-                listener?.onError("请先开启手机蓝牙。")
+                listener?.onError("Turn on Bluetooth first.")
                 return@post
             }
             val scanner = currentAdapter.bluetoothLeScanner
             if (scanner == null) {
-                listener?.onError("无法启动 BLE 扫描。")
+                listener?.onError("Unable to start BLE scan.")
                 return@post
             }
 
@@ -102,7 +102,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
 
                 override fun onScanFailed(errorCode: Int) {
                     stopScanInternal(notify = false)
-                    listener?.onError("BLE 扫描失败（代码 $errorCode）。")
+                    listener?.onError("BLE scan failed (code $errorCode)。")
                 }
             }
             scanCallback = callback
@@ -110,11 +110,11 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                 scanner.startScan(callback)
             } catch (error: SecurityException) {
                 scanCallback = null
-                listener?.onError("缺少附近设备/蓝牙扫描权限。", error)
+                listener?.onError("Nearby Devices / Bluetooth scan permission is missing.", error)
                 return@post
             } catch (error: IllegalStateException) {
                 scanCallback = null
-                listener?.onError("BLE 扫描器当前不可用。", error)
+                listener?.onError("BLE scanner is unavailable.", error)
                 return@post
             }
 
@@ -130,7 +130,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             .map { it.uuid.toString().lowercase() }
         val name = record?.deviceName
             ?: runCatching { result.device.name }.getOrNull()
-            ?: "未命名 BLE 设备"
+            ?: "Unnamed BLE device"
         scanResults[result.device.address] = BlePeripheral(
             address = result.device.address,
             name = name,
@@ -157,7 +157,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             closeGattImmediately()
             val currentAdapter = adapter
             if (currentAdapter == null || !currentAdapter.isEnabled) {
-                listener?.onError("请先开启手机蓝牙。")
+                listener?.onError("Turn on Bluetooth first.")
                 return@post
             }
             profiles = candidates
@@ -167,7 +167,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             val device = try {
                 currentAdapter.getRemoteDevice(address)
             } catch (error: IllegalArgumentException) {
-                listener?.onError("无效的 BLE 设备地址。", error)
+                listener?.onError("Invalid BLE device address.", error)
                 return@post
             }
             try {
@@ -178,9 +178,9 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                     BluetoothDevice.TRANSPORT_LE,
                 )
             } catch (error: SecurityException) {
-                listener?.onError("缺少蓝牙连接权限。", error)
+                listener?.onError("Bluetooth connect permission is missing.", error)
             } catch (error: RuntimeException) {
-                listener?.onError("无法连接该 BLE 设备。", error)
+                listener?.onError("Could not connect to this BLE device.", error)
             }
         }
     }
@@ -194,7 +194,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        fail("BLE 连接状态异常（$status）。")
+                        fail("Unexpected BLE connection state ($status)。")
                         return
                     }
                     runCatching {
@@ -207,7 +207,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                     val wasIntentional = intentionalDisconnect
                     closeGattImmediately()
                     listener?.onDisconnected(
-                        if (wasIntentional) null else "BLE 连接已断开（状态 $status）。",
+                        if (wasIntentional) null else "BLE disconnected (status $status)。",
                     )
                 }
             }
@@ -220,7 +220,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (gatt !== activeGatt) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                fail("读取 BLE 服务失败（$status）。")
+                fail("GATT service discovery failed ($status)。")
                 return
             }
             val match = profiles.firstNotNullOfOrNull { profile ->
@@ -233,7 +233,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                 val available = gatt.services
                     .flatMap { it.characteristics }
                     .joinToString { it.uuid.toString() }
-                fail("设备没有可识别的 UART 透传特征。发现：$available")
+                fail("No recognized UART characteristic. Found: $available")
                 return
             }
 
@@ -241,12 +241,12 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             writeCharacteristic = match.second
             val notify = match.third
             if (!gatt.setCharacteristicNotification(notify, true)) {
-                fail("无法启用 BLE 数据通知。")
+                fail("Could not enable BLE notifications.")
                 return
             }
             val descriptor = notify.getDescriptor(CLIENT_CONFIGURATION_UUID)
             if (descriptor == null) {
-                fail("通知特征缺少 CCCD 描述符。")
+                fail("Notification characteristic lacks CCCD.")
                 return
             }
             val accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -261,7 +261,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                     gatt.writeDescriptor(descriptor)
                 }
             }
-            if (!accepted) fail("写入 BLE 通知配置失败。")
+            if (!accepted) fail("Could not write BLE notification configuration.")
         }
 
         override fun onDescriptorWrite(
@@ -273,7 +273,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 selectedProfile?.let { listener?.onReady(it) }
             } else {
-                fail("启用 BLE 通知失败（$status）。")
+                fail("Could not enable BLE notifications ($status)。")
             }
         }
 
@@ -302,13 +302,13 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
             status: Int,
         ) {
             if (gatt === activeGatt && status != BluetoothGatt.GATT_SUCCESS) {
-                listener?.onError("BLE 指令写入失败（$status）。")
+                listener?.onError("BLE command write failed ($status)。")
             }
         }
     }
 
     private fun discoverServices(gatt: BluetoothGatt) {
-        if (!gatt.discoverServices()) fail("无法开始读取 BLE 服务。")
+        if (!gatt.discoverServices()) fail("Could not discover BLE services.")
     }
 
     fun write(payload: ByteArray) {
@@ -342,7 +342,7 @@ class AndroidBleUartTransport(context: Context) : AutoCloseable {
                     gatt.writeCharacteristic(characteristic)
                 }
             }
-            if (!accepted) listener?.onError("BLE 指令队列写入失败。")
+            if (!accepted) listener?.onError("BLE command queue write failed.")
             if (writeQueue.isNotEmpty()) scheduleWritePump(28)
         }, delayMillis)
     }

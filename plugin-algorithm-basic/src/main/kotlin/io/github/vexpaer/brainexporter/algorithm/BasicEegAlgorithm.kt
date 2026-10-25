@@ -15,7 +15,7 @@ import kotlin.math.sqrt
 
 class BasicEegAlgorithm : SignalAlgorithm {
     override val id: String = "basic-eeg-spectral-v1"
-    override val displayName: String = "基础 EEG 频域算法"
+    override val displayName: String = "EEG spectral analysis"
 
     override fun analyze(
         samples: List<SignalSample>,
@@ -58,7 +58,7 @@ class BasicEegAlgorithm : SignalAlgorithm {
                     bars = computeBands(spectral),
                     peakFrequencyHz = peak,
                     coverage = prepared.coverage,
-                    summary = "最近 5 秒 · 覆盖 ${formatPercent(prepared.coverage)}",
+                    summary = "Last 5s · coverage ${formatPercent(prepared.coverage)}",
                 )
 
                 else -> null
@@ -218,9 +218,9 @@ class BasicEegAlgorithm : SignalAlgorithm {
 
     private fun summary(peak: Double?, coverage: Double): String =
         if (peak == null) {
-            "覆盖 ${formatPercent(coverage)}"
+            "Coverage ${formatPercent(coverage)}"
         } else {
-            "峰值 ${"%.1f".format(peak)} Hz · 覆盖 ${formatPercent(coverage)}"
+            "Peak ${"%.1f".format(peak)} Hz · Coverage ${formatPercent(coverage)}"
         }
 
     private fun formatPercent(value: Double): String = "%.1f%%".format(value * 100.0)
