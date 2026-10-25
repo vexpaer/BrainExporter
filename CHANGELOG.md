@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 2026-10-25
+
+- Reframed the app around live EEG acquisition with a minimal English-first interface.
+- Removed the audio tab and focus/rest playback experience.
+- Introduced drifting aurora lighting, subtle grain and refined native Compose animations.
+- Simplified monitor, modules and account copy with clearer state feedback.
+- Updated the project README for technical portfolio presentation.
+- Preserved EEG processing, BLE support, impedance testing and local CSV export.
+
 ## 0.3.0 — 2026-08-18
 
 - 视觉语言整体升级：“沉浸星球主页 × 极简工具页”双域反差 —— 主页是深空仪式,工具页是实验室工作台。
