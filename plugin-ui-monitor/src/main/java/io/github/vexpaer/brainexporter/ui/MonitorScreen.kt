@@ -82,9 +82,9 @@ import io.github.vexpaer.brainexporter.sdk.SignalSample
 
 /**
  * 监测页:由简入繁。
- * - 未连接:全屏只有一个"扫描并连接"主按钮,极简引导。
- * - 已连接:整页沉浸式脑电主信号,底部主操作坞承载采集,复杂控制收进面板。
- * 连接 / 采集 / 阻抗三种主动作层级分明。
+ * - 未Connection:全屏只有一个"Scan & connect"主按钮,极简引导。
+ * - 已Connection:整页沉浸式脑电主信号,底部主操作坞承载采集,复杂控制收进面板。
+ * Connection / 采集 / Impedance三种主动作层级分明。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,25 +160,25 @@ internal fun MonitorScreen(
         val target = impedanceRequest.takeIf { it > 0 }
         BrandAlertDialog(
             onDismissRequest = { impedanceRequest = -1 },
-            title = "确认阻抗测量",
-            confirmLabel = if (target == null) "继续测量全部" else "继续测量 CH $target",
+            title = "Confirm impedance test",
+            confirmLabel = if (target == null) "Measure all channels" else "Measure CH $target",
             onConfirm = {
                 controller.startImpedance(target)
                 impedanceRequest = -1
             },
-            dismissLabel = "取消",
+            dismissLabel = "Cancel",
             onDismiss = { impedanceRequest = -1 },
             text = {
                 Text(
-                    "阻抗测试会向目标电极注入 ADS1299 的约 6 nA 交流测试电流。\n\n" +
-                        "人体连接电极时，请确保采集板使用电池或合规隔离供电，且不要通过非隔离 USB 与接市电的电脑相连。",
+                    "ADS1299 injects approximately 6 nA AC test current.\n\n" +
+                        "Use battery power or compliant isolation. Never connect a worn board to non-isolated mains-powered USB.",
                 )
             },
         )
     }
 }
 
-/** 未连接时的极简引导:一个主按钮 + 一句话 + 面板入口。 */
+/** 未Connection时的极简引导:一个主按钮 + 一句话 + 面板入口。 */
 @Composable
 private fun ConnectHero(
     busy: Boolean,
@@ -194,7 +194,7 @@ private fun ConnectHero(
                 .align(Alignment.TopEnd)
                 .padding(horizontal = Spacing.S, vertical = Spacing.XS),
         ) {
-            Icon(imageVector = Icons.Filled.Tune, contentDescription = "打开监测控制面板", tint = MoonDust)
+            Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
         }
         Column(
             modifier = Modifier.align(Alignment.Center).padding(horizontal = Spacing.XXL),
@@ -232,7 +232,7 @@ private fun ConnectHero(
                             )
                         }
                         Text(
-                            if (scanning) "扫描中" else if (busy) "连接中" else "扫描",
+                            if (scanning) "Scanning" else if (busy) "Connecting" else "Scan",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -240,14 +240,14 @@ private fun ConnectHero(
                 }
             }
             Text(
-                text = if (scanning) "正在寻找附近的脑电设备…" else "扫描并连接你的脑电采集板",
+                text = if (scanning) "Searching for EEG devices…" else "Connect your EEG device",
                 color = Starlight,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
             Text(
-                "支持 RT_BLE_AT 与 FFE0 透传模块（如 I6328A/I6329A）。\n连接后即可全屏查看实时脑电波形。",
+                "RT-BCI / ADS1299 · BLE",
                 color = MoonDust,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -256,7 +256,7 @@ private fun ConnectHero(
     }
 }
 
-/** 已连接后的沉浸工作台:主信号优先,右上状态胶囊,底部主操作坞。 */
+/** 已Connection后的沉浸工作台:主信号优先,右上状态胶囊,底部主操作坞。 */
 @Composable
 private fun ConnectedStage(
     snapshot: MonitorSnapshot,
@@ -269,6 +269,7 @@ private fun ConnectedStage(
 ) {
     val analysisByChannel = remember(snapshot.analyses) { snapshot.analyses.associateBy { it.channel } }
     Box(modifier.background(Void)) {
+        AuroraBackground(Modifier.fillMaxSize(), quiet = true)
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.verticalGradient(
@@ -306,15 +307,15 @@ private fun ConnectedStage(
                 dotColor = Success,
                 label = "${snapshot.connection.deviceName ?: "RT-BCI"} · ${metricsText(snapshot)}",
                 modifier = Modifier.weight(1f, fill = false).semantics {
-                    contentDescription = "已连接 ${snapshot.connection.deviceName ?: "设备"}，采样率 ${metricsText(snapshot)}"
+                    contentDescription = "Connected ${snapshot.connection.deviceName ?: "device"}，sample rate ${metricsText(snapshot)}"
                 },
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onOpenPanel) {
-                Icon(imageVector = Icons.Filled.Tune, contentDescription = "打开监测控制面板", tint = MoonDust)
+                Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
             }
             IconButton(onClick = { controller.disconnect() }) {
-                Icon(imageVector = Icons.Filled.PowerSettingsNew, contentDescription = "断开设备", tint = MoonDust)
+                Icon(imageVector = Icons.Filled.PowerSettingsNew, contentDescription = "Disconnect device", tint = MoonDust)
             }
         }
 
@@ -328,7 +329,7 @@ private fun ConnectedStage(
                 )
                 if (acquisition.active) {
                     Text(
-                        "已写入 ${acquisition.samplesWritten} 个采样点",
+                        "Saved ${acquisition.samplesWritten} samples",
                         color = MoonDust,
                         style = MaterialTheme.typography.labelSmall.numeric(),
                     )
@@ -338,19 +339,19 @@ private fun ConnectedStage(
                 snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES
             ) {
                 OutlinedButton(onClick = { controller.setView(MonitorView.IMPEDANCE) }) {
-                    Text("阻抗")
+                    Text("Impedance")
                 }
             }
             if (acquisition.active) {
                 Button(
                     onClick = controller::stopAcquisition,
                     colors = ButtonDefaults.buttonColors(containerColor = Danger, contentColor = Color(0xFF2A0709)),
-                ) { Text("停止采集") }
+                ) { Text("Stop recording") }
             } else {
                 Button(
                     onClick = { recordingPermissionGate(controller::startAcquisition) },
                     enabled = !snapshot.impedance.running,
-                ) { Text(if (snapshot.impedance.running) "阻抗测量中…" else "开始采集") }
+                ) { Text(if (snapshot.impedance.running) "Measuring impedance…" else "Start recording") }
             }
         }
     }
@@ -358,14 +359,14 @@ private fun ConnectedStage(
 
 private fun metricsText(snapshot: MonitorSnapshot): String {
     val m = snapshot.metrics
-    return if (m.frames == 0L) "等待数据" else {
+    return if (m.frames == 0L) "Waiting for data" else {
         val rate = "%.1f Hz".format(m.effectiveSampleRateHz)
         val loss = "%.1f%%".format(m.packetLossRatio * 100)
-        "$rate · 丢包 $loss"
+        "$rate · packet loss $loss"
     }
 }
 
-/** 单画布多通道信号显示:每条通道一根线,垂直分布,一屏看全部。 */
+/** 单画布多Channels信号显示:每条Channels一根线,垂直分布,一屏看全部。 */
 @Composable
 private fun ImmersiveSignalCanvas(
     snapshot: MonitorSnapshot,
@@ -498,7 +499,7 @@ private fun FeatureMatrix(
         if (features.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.GraphicEq,
-                title = "开始 EEG 采集后，这里会显示模块输出的特征值。",
+                title = "Start recording to see live feature output.",
                 detail = null,
                 tint = LunarViolet,
                 modifier = Modifier.align(Alignment.Center),
@@ -542,7 +543,7 @@ private fun FeatureHero(series: ModuleFeatureSeries) {
     }
 }
 
-/** 阻抗模式:全屏进度 + 大号读数,控制留在面板。 */
+/** Impedance模式:全屏进度 + 大号读数,控制留在面板。 */
 @Composable
 private fun ImmersiveImpedance(
     snapshot: MonitorSnapshot,
@@ -554,7 +555,7 @@ private fun ImmersiveImpedance(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.S),
         ) {
-            Text("ADS1299 交流阻抗估算", color = MoonDust, style = MaterialTheme.typography.labelLarge)
+            Text("ADS1299 impedance", color = MoonDust, style = MaterialTheme.typography.labelLarge)
             if (impedance.running) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(54.dp),
@@ -595,7 +596,7 @@ private fun ImmersiveImpedance(
                         )
                     }
                 } else {
-                    Text("尚未测量 — 在控制面板中选择通道开始", color = MoonDust, textAlign = TextAlign.Center)
+                    Text("Choose channels in Controls to measure", color = MoonDust, textAlign = TextAlign.Center)
                 }
             }
             impedance.error?.let { Text(it, color = Danger, textAlign = TextAlign.Center) }
@@ -603,7 +604,7 @@ private fun ImmersiveImpedance(
     }
 }
 
-/** 阻抗质量色:低饱和绿仅作小指示;偏高用暖金属;较差用错误红。 */
+/** Impedance质量色:低饱和绿仅作小指示;偏高用暖金属;较差用错误红。 */
 private fun qualityColor(quality: ImpedanceQuality?): Color = when (quality) {
     ImpedanceQuality.GOOD -> Success
     ImpedanceQuality.WARNING -> SolarMetal
@@ -612,9 +613,9 @@ private fun qualityColor(quality: ImpedanceQuality?): Color = when (quality) {
 }
 
 private fun qualityLabel(quality: ImpedanceQuality): String = when (quality) {
-    ImpedanceQuality.GOOD -> "良好（< 750 kΩ）"
-    ImpedanceQuality.WARNING -> "偏高（750–2500 kΩ）"
-    ImpedanceQuality.BAD -> "较差（> 2500 kΩ）"
+    ImpedanceQuality.GOOD -> "Good (< 750 kΩ)"
+    ImpedanceQuality.WARNING -> "Elevated (750–2500 kΩ)"
+    ImpedanceQuality.BAD -> "High (> 2500 kΩ)"
 }
 
 /** 底部控制面板:所有复杂控件收进来,按功能分组。 */
@@ -637,14 +638,14 @@ private fun ControlPanel(
     ) {
         item {
             Text(
-                "监测控制",
+                "Monitor controls",
                 color = Starlight,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
         }
 
-        item { SectionLabel("设备") }
+        item { SectionLabel("device") }
         item {
             if (connected) {
                 InstrumentSurface(color = Obsidian) {
@@ -659,7 +660,7 @@ private fun ControlPanel(
                                 Text(it, color = MoonDust, style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                        OutlinedButton(onClick = controller::disconnect) { Text("断开") }
+                        OutlinedButton(onClick = controller::disconnect) { Text("Disconnect") }
                     }
                 }
             } else {
@@ -667,15 +668,15 @@ private fun ControlPanel(
                     Button(
                         onClick = { permissionGate(controller::scan) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("扫描并连接") }
+                    ) { Text("Scan & connect") }
                     if (snapshot.devices.isNotEmpty()) {
-                        Text("选择可连接设备", color = MoonDust, style = MaterialTheme.typography.labelMedium)
+                        Text("Available devices", color = MoonDust, style = MaterialTheme.typography.labelMedium)
                         snapshot.devices.take(8).forEach { device ->
                             DeviceRow(device = device, onConnect = { controller.connect(device.id) })
                         }
                     } else {
                         Text(
-                            "点击扫描，选择 RT_BLE_AT；也会识别使用 FFE0 透传服务的 I6328A/I6329A 模块。",
+                            "Select a discovered RT-BCI device.",
                             color = MoonDust,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -684,7 +685,7 @@ private fun ControlPanel(
             }
         }
 
-        item { SectionLabel("数据采集状态") }
+        item { SectionLabel("Recording") }
         item {
             val acquisition = snapshot.acquisition
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.XXS)) {
@@ -694,7 +695,7 @@ private fun ControlPanel(
                 }
                 if (acquisition.active) {
                     Text(
-                        "已写入 ${acquisition.samplesWritten} 个采样点",
+                        "Saved ${acquisition.samplesWritten} samples",
                         color = MoonDust,
                         style = MaterialTheme.typography.bodySmall.numeric(),
                     )
@@ -704,14 +705,14 @@ private fun ControlPanel(
                 }
                 acquisition.error?.let { Text(it, color = Danger) }
                 Text(
-                    "开始/停止采集在页面底部的操作坞；CSV 保存到手机 Documents/eegData，数据只保存在本机。",
+                    "CSV · Documents/eegData",
                     color = MoonDust.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
 
-        item { SectionLabel("分析视图") }
+        item { SectionLabel("Analysis") }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
                 if (snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES) {
@@ -730,7 +731,7 @@ private fun ControlPanel(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Spacing.S),
                         ) {
-                            Text("时域去直流", color = MoonDust, style = MaterialTheme.typography.labelMedium)
+                            Text("Remove DC offset", color = MoonDust, style = MaterialTheme.typography.labelMedium)
                             Switch(checked = demean, onCheckedChange = onDemeanChange)
                         }
                     } else {
@@ -741,12 +742,12 @@ private fun ControlPanel(
         }
 
         if (snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES) {
-            item { SectionLabel("监测数据源") }
+            item { SectionLabel("Signal source") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.XXS)) {
                     ChipSelector(
                         options = buildList {
-                            add(ChipOption(null as String?, "原始脑电"))
+                            add(ChipOption(null as String?, "Raw EEG"))
                             snapshot.modules.filter { it.enabled }.forEach { module ->
                                 add(
                                     ChipOption(
@@ -761,14 +762,14 @@ private fun ControlPanel(
                         onSelect = { value -> controller.selectModule(value) },
                     )
                     if (snapshot.modules.none { it.enabled }) {
-                        Text("可在“模块”页把处理模块添加到监测。", color = MoonDust, style = MaterialTheme.typography.labelSmall)
+                        Text("Enable a processing module under Modules.", color = MoonDust, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
         }
 
         if (snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES) {
-            item { SectionLabel("通道") }
+            item { SectionLabel("Channels") }
             item {
                 ChipSelector(
                     options = (1..8).map { channel ->
@@ -786,8 +787,8 @@ private fun ControlPanel(
                             TextButton(onClick = {
                                 selectedChannels.clear()
                                 selectedChannels.addAll(1..8)
-                            }) { Text("全选") }
-                            TextButton(onClick = { selectedChannels.clear() }) { Text("清空") }
+                            }) { Text("All") }
+                            TextButton(onClick = { selectedChannels.clear() }) { Text("Clear") }
                         }
                     },
                 )
@@ -795,7 +796,7 @@ private fun ControlPanel(
         }
 
         if (snapshot.activeView == MonitorView.IMPEDANCE) {
-            item { SectionLabel("阻抗详表") }
+            item { SectionLabel("Impedance detail") }
             item {
                 ImpedanceToolbar(
                     snapshot = snapshot,
@@ -814,11 +815,11 @@ private fun ControlPanel(
             }
         }
 
-        item { SectionLabel("链路指标") }
+        item { SectionLabel("Link metrics") }
         item { MetricsStrip(snapshot) }
         item {
             Text(
-                "PSD/频谱使用 Hann 窗；丢包处线性插值并显示覆盖率。结果用于原型研发，不作为医疗诊断。",
+                "Hann window · interpolated packet gaps · research use only.",
                 color = MoonDust.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(bottom = Spacing.S),
@@ -828,11 +829,11 @@ private fun ControlPanel(
 }
 
 private val viewOptions = listOf(
-    MonitorView.TIME to "电压/时间",
-    MonitorView.PSD to "5 秒 PSD",
-    MonitorView.SPECTRUM to "实时频谱",
-    MonitorView.BANDS to "5 秒波段",
-    MonitorView.IMPEDANCE to "阻抗测量",
+    MonitorView.TIME to "Waveform",
+    MonitorView.PSD to "5s PSD",
+    MonitorView.SPECTRUM to "Spectrum",
+    MonitorView.BANDS to "Bands",
+    MonitorView.IMPEDANCE to "Impedance test",
 )
 
 @Composable
@@ -868,12 +869,12 @@ private fun DeviceRow(device: DeviceDescriptor, onConnect: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(device.name, color = Starlight, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${device.id} · ${device.rssi} dBm${if (device.recommended) " · 推荐" else ""}",
+                    "${device.id} · ${device.rssi} dBm${if (device.recommended) " · recommended" else ""}",
                     color = MoonDust,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            OutlinedButton(onClick = onConnect) { Text("连接") }
+            OutlinedButton(onClick = onConnect) { Text("Connection") }
         }
     }
 }
@@ -882,10 +883,10 @@ private fun DeviceRow(device: DeviceDescriptor, onConnect: () -> Unit) {
 private fun MetricsStrip(snapshot: MonitorSnapshot) {
     val metrics = snapshot.metrics
     LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.S)) {
-        item { MetricCard("有效采样率", if (metrics.frames == 0L) "—" else "%.1f Hz".format(metrics.effectiveSampleRateHz), "目标 250 Hz") }
-        item { MetricCard("估算丢包率", if (metrics.frames == 0L) "—" else "%.1f%%".format(metrics.packetLossRatio * 100), "缺失 ${metrics.missingPackets}") }
-        item { MetricCard("有效数据帧", "${metrics.frames}", formatBytes(metrics.receivedBytes)) }
-        item { MetricCard("链路", snapshot.connection.profileName ?: "—", snapshot.connection.deviceName ?: "等待连接") }
+        item { MetricCard("Sample rate", if (metrics.frames == 0L) "—" else "%.1f Hz".format(metrics.effectiveSampleRateHz), "Target 250 Hz") }
+        item { MetricCard("Packet loss", if (metrics.frames == 0L) "—" else "%.1f%%".format(metrics.packetLossRatio * 100), "Missing ${metrics.missingPackets}") }
+        item { MetricCard("Valid frames", "${metrics.frames}", formatBytes(metrics.receivedBytes)) }
+        item { MetricCard("Link", snapshot.connection.profileName ?: "—", snapshot.connection.deviceName ?: "Not connected") }
     }
 }
 
@@ -918,8 +919,8 @@ private fun ImpedanceToolbar(
 ) {
     InstrumentSurface(color = Obsidian) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-            Text("ADS1299 交流阻抗估算", color = Starlight, fontWeight = FontWeight.SemiBold)
-            Text("6 nA · 约 31.2 Hz · 5 秒/通道 · 全部约需 40 秒", color = MoonDust, style = MaterialTheme.typography.bodySmall)
+            Text("ADS1299 impedance", color = Starlight, fontWeight = FontWeight.SemiBold)
+            Text("6 nA · 31.2 Hz · 5s/channel", color = MoonDust, style = MaterialTheme.typography.bodySmall)
             if (snapshot.impedance.running) {
                 Text(
                     "CH ${snapshot.impedance.channel ?: "—"} · ${(snapshot.impedance.progress * 100).toInt()}%",
@@ -933,8 +934,8 @@ private fun ImpedanceToolbar(
                     onClick = onMeasureAll,
                     enabled = snapshot.connection.phase == ConnectionPhase.CONNECTED &&
                         !snapshot.impedance.running && !snapshot.acquisition.active,
-                ) { Text("测量全部通道") }
-                OutlinedButton(onClick = onStop, enabled = snapshot.impedance.running) { Text("停止") }
+                ) { Text("Measure all") }
+                OutlinedButton(onClick = onStop, enabled = snapshot.impedance.running) { Text("Stop") }
             }
         }
     }
@@ -963,29 +964,29 @@ private fun ImpedanceCard(
                     style = MaterialTheme.typography.titleLarge.numeric(),
                 )
                 Text(
-                    if (measuring) "正在测量…" else result?.let { qualityLabel(it.quality) } ?: "尚未测量",
+                    if (measuring) "Measuring…" else result?.let { qualityLabel(it.quality) } ?: "Not measured",
                     color = if (measuring) OrbitBlue else qualityColor(result?.quality),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 result?.let {
                     Text(
-                        "σ ${"%.2f".format(it.standardDeviationUv)} µV · ${it.sampleCount} 点",
+                        "σ ${"%.2f".format(it.standardDeviationUv)} µV · ${it.sampleCount} samples",
                         color = MoonDust,
                         style = MaterialTheme.typography.labelSmall.numeric(),
                     )
                 }
             }
-            Button(onClick = onMeasure, enabled = enabled) { Text("测量") }
+            Button(onClick = onMeasure, enabled = enabled) { Text("Measure") }
         }
     }
 }
 
 private fun viewHint(view: MonitorView): String = when (view) {
-    MonitorView.TIME -> "滚动窗口 5 s"
-    MonitorView.PSD -> "Hann · 最近 5 s · 0–60 Hz"
-    MonitorView.SPECTRUM -> "FFT 幅值 · 约 2 s · 0–60 Hz"
-    MonitorView.BANDS -> "相对功率 · 最近 5 s"
-    MonitorView.IMPEDANCE -> "6 nA · 31.2 Hz · 5 s/通道"
+    MonitorView.TIME -> "5s window"
+    MonitorView.PSD -> "Hann · latest 5s · 0–60 Hz"
+    MonitorView.SPECTRUM -> "FFT magnitude · ~2s · 0–60 Hz"
+    MonitorView.BANDS -> "Relative power · latest 5s"
+    MonitorView.IMPEDANCE -> "6 nA · 31.2 Hz · 5s/channel"
 }
 
 private fun formatBytes(bytes: Long): String = when {

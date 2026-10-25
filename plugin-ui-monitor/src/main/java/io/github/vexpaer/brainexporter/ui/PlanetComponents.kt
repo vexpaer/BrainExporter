@@ -2,6 +2,10 @@ package io.github.vexpaer.brainexporter.ui
 
 import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,26 +77,11 @@ internal fun PlanetScaffold(
     atmospheric: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                if (atmospheric) {
-                    Brush.radialGradient(
-                        0f to PlanetPalette.backgroundTop,
-                        0.55f to PlanetPalette.backgroundMid,
-                        1f to Void,
-                        radius = 1_150f,
-                    )
-                } else {
-                    SolidBackground(Void)
-                },
-            ),
-        content = content,
-    )
+    Box(modifier = modifier.fillMaxSize().background(Void)) {
+        AuroraBackground(Modifier.fillMaxSize(), quiet = !atmospheric)
+        content()
+    }
 }
-
-private fun SolidBackground(color: Color): Brush = Brush.linearGradient(listOf(color, color))
 
 /**
  * 工具页标题：编辑式层级，替代传统 TopAppBar。
@@ -290,6 +279,11 @@ internal fun OrbitalNavigation(
     ) {
         items.forEachIndexed { index, item ->
             val isSelected = index == selectedIndex
+            val lift by animateFloatAsState(
+                targetValue = if (isSelected) -2f else 0f,
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 470f),
+                label = "nav-lift",
+            )
             val tint by animateColorAsState(
                 targetValue = if (isSelected) OrbitBlue else MoonDust,
                 animationSpec = tween(Motion.FastMs),
@@ -314,7 +308,7 @@ internal fun OrbitalNavigation(
                     imageVector = item.icon,
                     contentDescription = null,
                     tint = tint,
-                    modifier = Modifier.size(21.dp),
+                    modifier = Modifier.size(21.dp).graphicsLayer { translationY = lift.dp.toPx() },
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(text = item.label, color = tint, style = MaterialTheme.typography.labelSmall)
@@ -390,12 +384,21 @@ internal fun <T> ChipSelector(
         items(options.size) { index ->
             val option = options[index]
             val selectedState = isSelected(option.value)
-            val borderColor = if (selectedState) OrbitBlue.copy(alpha = 0.55f) else Hairline
+            val borderColor by animateColorAsState(
+                targetValue = if (selectedState) OrbitBlue.copy(alpha = 0.55f) else Hairline,
+                animationSpec = if (rememberReduceMotion()) snap() else tween(Motion.StandardMs, easing = Motion.Emphasized),
+                label = "chip-border",
+            )
+            val chipBackground by animateColorAsState(
+                targetValue = if (selectedState) MaterialTheme.colorScheme.surfaceContainerHigh else Obsidian,
+                animationSpec = if (rememberReduceMotion()) snap() else tween(Motion.StandardMs, easing = Motion.Emphasized),
+                label = "chip-fill",
+            )
             Row(
                 modifier = Modifier
                     .defaultMinSize(minHeight = 48.dp)
                     .clip(ShapeCapsule)
-                    .background(if (selectedState) MaterialTheme.colorScheme.surfaceContainerHigh else Obsidian)
+                    .background(chipBackground)
                     .border(1.dp, borderColor, ShapeCapsule)
                     .clickable(onClickLabel = option.label, role = Role.Tab) { onSelect(option.value) }
                     .semantics { role = Role.Tab; selected = selectedState }

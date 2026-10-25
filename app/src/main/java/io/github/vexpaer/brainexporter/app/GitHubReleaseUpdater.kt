@@ -57,7 +57,7 @@ class GitHubReleaseUpdater(
         if (currentState.phase in setOf(UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING, UpdatePhase.READY_TO_INSTALL)) {
             return
         }
-        publish(currentState.copy(phase = UpdatePhase.CHECKING, progress = null, message = "正在检查 GitHub Release…"))
+        publish(currentState.copy(phase = UpdatePhase.CHECKING, progress = null, message = "Checking GitHub releases…"))
         worker.execute {
             runCatching(::fetchLatestRelease)
                 .onSuccess { release ->
@@ -67,7 +67,7 @@ class GitHubReleaseUpdater(
                             currentState.copy(
                                 phase = UpdatePhase.AVAILABLE,
                                 availableVersion = release.version,
-                                message = "发现 BrainExporter v${release.version}",
+                                message = "BrainExporter v${release.version}",
                                 releaseUrl = release.releaseUrl,
                             ),
                         )
@@ -76,7 +76,7 @@ class GitHubReleaseUpdater(
                             currentState.copy(
                                 phase = UpdatePhase.UP_TO_DATE,
                                 availableVersion = release.version,
-                                message = "当前已是最新版本",
+                                message = "You're up to date.",
                                 releaseUrl = release.releaseUrl,
                             ),
                         )
@@ -87,7 +87,7 @@ class GitHubReleaseUpdater(
                         currentState.copy(
                             phase = UpdatePhase.ERROR,
                             progress = null,
-                            message = "更新检查失败：${failure.message ?: "网络不可用"}",
+                            message = "Update check failed: ${failure.message ?: "Network unavailable"}",
                         ),
                     )
                 }
@@ -102,11 +102,11 @@ class GitHubReleaseUpdater(
         }
         if (currentState.phase == UpdatePhase.DOWNLOADING) return
         runCatching {
-            require(release.apkUrl.startsWith(RELEASE_DOWNLOAD_PREFIX)) { "Release APK 地址不可信" }
-            require(release.assetName.matches(SAFE_ASSET_NAME)) { "Release APK 文件名无效" }
+            require(release.apkUrl.startsWith(RELEASE_DOWNLOAD_PREFIX)) { "Untrusted release APK URL" }
+            require(release.assetName.matches(SAFE_ASSET_NAME)) { "Invalid release APK filename" }
             val request = DownloadManager.Request(release.apkUrl.toUri())
                 .setTitle("BrainExporter v${release.version}")
-                .setDescription("正在下载应用更新")
+                .setDescription("Downloading app update")
                 .setMimeType(APK_MIME_TYPE)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setAllowedOverMetered(true)
@@ -124,7 +124,7 @@ class GitHubReleaseUpdater(
                     phase = UpdatePhase.DOWNLOADING,
                     availableVersion = release.version,
                     progress = 0,
-                    message = "正在下载 v${release.version}",
+                    message = "Downloading v${release.version}",
                     releaseUrl = release.releaseUrl,
                 ),
             )
@@ -134,7 +134,7 @@ class GitHubReleaseUpdater(
                 currentState.copy(
                     phase = UpdatePhase.ERROR,
                     progress = null,
-                    message = "无法开始下载：${failure.message ?: "系统下载器不可用"}",
+                    message = "Could not start download: ${failure.message ?: "Download manager unavailable"}",
                 ),
             )
         }
@@ -143,7 +143,7 @@ class GitHubReleaseUpdater(
     override fun installDownloadedUpdate() {
         val id = downloadId ?: preferences.getLong(KEY_DOWNLOAD_ID, -1L).takeIf { it >= 0L }
         if (id == null) {
-            publish(currentState.copy(phase = UpdatePhase.ERROR, message = "没有可安装的更新包"))
+            publish(currentState.copy(phase = UpdatePhase.ERROR, message = "No installable update available"))
             return
         }
         if (!applicationContext.packageManager.canRequestPackageInstalls()) {
@@ -157,18 +157,18 @@ class GitHubReleaseUpdater(
                     publish(
                         currentState.copy(
                             phase = UpdatePhase.READY_TO_INSTALL,
-                            message = "请允许安装未知应用；返回后将继续安装",
+                            message = "Allow installation from this source, then return to continue",
                         ),
                     )
                 }
                 .onFailure { failure ->
-                    publish(currentState.copy(phase = UpdatePhase.ERROR, message = "无法打开安装权限：${failure.message}"))
+                    publish(currentState.copy(phase = UpdatePhase.ERROR, message = "Could not open install settings: ${failure.message}"))
                 }
             return
         }
         val uri = downloadManager.getUriForDownloadedFile(id)
         if (uri == null) {
-            publish(currentState.copy(phase = UpdatePhase.ERROR, message = "系统找不到已下载的 APK"))
+            publish(currentState.copy(phase = UpdatePhase.ERROR, message = "Downloaded APK not found"))
             return
         }
         val installIntent = Intent(Intent.ACTION_VIEW)
@@ -177,10 +177,10 @@ class GitHubReleaseUpdater(
         runCatching { applicationContext.startActivity(installIntent) }
             .onSuccess {
                 awaitingInstallPermission = false
-                publish(currentState.copy(phase = UpdatePhase.READY_TO_INSTALL, message = "已打开 Android 安装器"))
+                publish(currentState.copy(phase = UpdatePhase.READY_TO_INSTALL, message = "Opened Android installer"))
             }
             .onFailure { failure ->
-                publish(currentState.copy(phase = UpdatePhase.ERROR, message = "无法打开安装器：${failure.message}"))
+                publish(currentState.copy(phase = UpdatePhase.ERROR, message = "Could not open installer: ${failure.message}"))
             }
     }
 
@@ -204,7 +204,7 @@ class GitHubReleaseUpdater(
             connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             connection.setRequestProperty("User-Agent", "BrainExporter-Android/$normalizedCurrentVersion")
             val responseCode = connection.responseCode
-            require(responseCode in 200..299) { "GitHub API 返回 HTTP $responseCode" }
+            require(responseCode in 200..299) { "GitHub API returned HTTP $responseCode" }
             val root = connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
             val version = root.getString("tag_name").removePrefix("v")
             val releaseUrl = root.getString("html_url")
@@ -222,7 +222,7 @@ class GitHubReleaseUpdater(
             val apk = candidates.firstOrNull { it.first == expectedName }
                 ?: candidates.firstOrNull { it.first.startsWith("BrainExporter", ignoreCase = true) }
                 ?: candidates.firstOrNull()
-                ?: throw IllegalStateException("Latest Release 没有 APK 附件")
+                ?: throw IllegalStateException("Latest release has no APK asset")
             ReleaseAsset(version, releaseUrl, apk.first, apk.second)
         } finally {
             connection.disconnect()
@@ -248,7 +248,7 @@ class GitHubReleaseUpdater(
                 phase = UpdatePhase.DOWNLOADING,
                 availableVersion = version,
                 progress = null,
-                message = "正在恢复更新下载状态",
+                message = "Restoring download state",
                 releaseUrl = preferences.getString(KEY_RELEASE_URL, null),
             ),
         )
@@ -265,7 +265,7 @@ class GitHubReleaseUpdater(
         val query = DownloadManager.Query().setFilterById(id)
         downloadManager.query(query)?.use { cursor ->
             if (!cursor.moveToFirst()) {
-                failDownload("系统下载记录不存在")
+                failDownload("Download record no longer exists")
                 return
             }
             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
@@ -278,7 +278,7 @@ class GitHubReleaseUpdater(
                         currentState.copy(
                             phase = UpdatePhase.DOWNLOADING,
                             progress = progress,
-                            message = progress?.let { "正在下载更新 · $it%" } ?: "正在等待系统下载器",
+                            message = progress?.let { "Downloading · $it%" } ?: "Waiting for download manager",
                         ),
                     )
                 }
@@ -290,7 +290,7 @@ class GitHubReleaseUpdater(
                         currentState.copy(
                             phase = UpdatePhase.READY_TO_INSTALL,
                             progress = 100,
-                            message = "更新已下载，可以安装",
+                            message = "Update ready to install",
                         ),
                     )
                     if (applicationContext.packageManager.canRequestPackageInstalls()) {
@@ -300,7 +300,7 @@ class GitHubReleaseUpdater(
 
                 DownloadManager.STATUS_FAILED -> {
                     val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                    failDownload("系统下载失败（$reason）")
+                    failDownload("System download failed ($reason)")
                 }
             }
         }

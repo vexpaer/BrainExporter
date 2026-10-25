@@ -88,7 +88,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                     phase = ConnectionPhase.CONNECTED,
                     deviceName = selectedDeviceName,
                     deviceId = selectedDeviceId,
-                    message = "请先断开当前设备再扫描。",
+                    message = "Disconnect the current device before scanning.",
                 ),
             )
             return
@@ -96,7 +96,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
         emitConnection(
             ConnectionState(
                 phase = ConnectionPhase.SCANNING,
-                message = "正在扫描附近的 BLE 设备…",
+                message = "Scanning nearby BLE devices…",
             ),
         )
         // Establish a deterministic idle state even if the board was streaming
@@ -116,7 +116,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                 phase = ConnectionPhase.CONNECTING,
                 deviceName = selectedDeviceName,
                 deviceId = deviceId,
-                message = "正在连接并配置数据通知…",
+                message = "Connecting · configuring data notifications…",
             ),
         )
         transport.connect(deviceId, GATT_PROFILES)
@@ -134,7 +134,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                 phase = ConnectionPhase.CONNECTING,
                 deviceName = selectedDeviceName,
                 deviceId = selectedDeviceId,
-                message = "正在停止采集并断开…",
+                message = "Stopping stream · disconnecting…",
             ),
         )
         stopStreaming()
@@ -147,13 +147,13 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
     override fun onScanResults(devices: List<BlePeripheral>) {
         val mapped = devices.mapNotNull { device ->
             val knownService = device.serviceUuids.any { it.lowercase() in KNOWN_SERVICES }
-            val isUnnamed = device.name == "未命名 BLE 设备"
+            val isUnnamed = device.name == "Unnamed BLE device"
             if (isUnnamed && !knownService) return@mapNotNull null
             val recommended = device.name.equals("RT_BLE_AT", true) ||
                 device.name.equals("XLBLE", true) || knownService
             DeviceDescriptor(
                 id = device.address,
-                name = if (isUnnamed) "未命名 RT-BCI 候选设备" else device.name,
+                name = if (isUnnamed) "Unnamed RT-BCI device" else device.name,
                 rssi = device.rssi,
                 serviceUuids = device.serviceUuids,
                 recommended = recommended,
@@ -175,13 +175,13 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                 deviceName = selectedDeviceName,
                 deviceId = selectedDeviceId,
                 profileName = profile.label,
-                message = "已连接，可以开始采集",
+                message = "Connected · ready to record",
             ),
         )
     }
 
     override fun startStreaming() {
-        check(connected) { "请先连接 RT-BCI 设备。" }
+        check(connected) { "Connect an RT-BCI device first." }
         if (streaming) return
         resetSignalState()
         streaming = true
@@ -254,7 +254,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                 phase = if (reason == null) ConnectionPhase.DISCONNECTED else ConnectionPhase.ERROR,
                 deviceName = selectedDeviceName,
                 deviceId = selectedDeviceId,
-                message = reason ?: "已断开",
+                message = reason ?: "Disconnected",
             ),
         )
     }
@@ -295,14 +295,14 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
 
     override fun startImpedance(channel: Int?, dwellSeconds: Double) {
         if (!connected) {
-            val error = "请先连接 RT-BCI，再开始阻抗测量。"
+            val error = "Connect RT-BCI before impedance testing."
             impedanceState = impedanceState.copy(error = error)
             listener?.onImpedanceChanged(impedanceState)
             return
         }
         if (channel != null && channel !in 1..8) return
         if (streaming) {
-            val error = "请先停止 EEG 采集，再开始阻抗测量。"
+            val error = "Stop EEG recording before impedance testing."
             impedanceState = impedanceState.copy(error = error)
             listener?.onImpedanceChanged(impedanceState)
             return
@@ -353,7 +353,7 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
                 }
             }
         } catch (failure: RuntimeException) {
-            error = failure.message ?: "阻抗测量失败。"
+            error = failure.message ?: "Impedance test failed."
         } finally {
             runCatching { applyImpedanceChannel(null) }
             val completed = !impedanceCancelled.get() && error == null && connected
@@ -454,13 +454,13 @@ class RtBciDevicePlugin(context: Context) : DevicePlugin, BleUartListener {
 
         val GATT_PROFILES = listOf(
             UartGattProfile(
-                label = "RT_BLE_AT 定制透传",
+                label = "RT_BLE_AT custom UART",
                 serviceUuid = uuid("fff0"),
                 writeUuid = uuid("fff3"),
                 notifyUuid = uuid("fff4"),
             ),
             UartGattProfile(
-                label = "I6328A / I6329A 原厂透传",
+                label = "I6328A / I6329A native UART",
                 serviceUuid = uuid("ffe0"),
                 writeUuid = uuid("ffe1"),
                 notifyUuid = uuid("ffe2"),

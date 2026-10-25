@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         } else {
             Toast.makeText(
                 this,
-                "需要附近设备/蓝牙权限才能扫描和连接脑电设备。",
+                "Nearby Devices and Bluetooth permissions are required to connect to EEG hardware.",
                 Toast.LENGTH_LONG,
             ).show()
         }
@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
         } else {
             Toast.makeText(
                 this,
-                "Android 8/9 需要存储权限才能写入 Documents/eegData。",
+                "Android 8/9 requires storage permission to save EEG files to Documents/eegData.",
                 Toast.LENGTH_LONG,
             ).show()
         }

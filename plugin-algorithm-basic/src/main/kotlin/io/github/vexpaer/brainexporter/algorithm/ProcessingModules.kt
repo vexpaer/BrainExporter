@@ -36,10 +36,10 @@ class BandPassEegModule(
     private var lastSampleIndex: Long? = null
 
     init {
-        require(lowCutHz > 0.0) { "低截止频率必须大于 0 Hz" }
-        require(highCutHz > lowCutHz) { "高截止频率必须大于低截止频率" }
-        require(order == 2 || order == 4) { "当前带通引擎支持 2 阶或 4 阶边缘" }
-        require(descriptor.type == ProcessingModuleType.EEG_TO_EEG) { "带通模块必须声明 eeg_to_eeg" }
+        require(lowCutHz > 0.0) { "Low cutoff must exceed 0 Hz" }
+        require(highCutHz > lowCutHz) { "High cutoff must exceed low cutoff" }
+        require(order == 2 || order == 4) { "This bandpass engine supports order 2 or 4" }
+        require(descriptor.type == ProcessingModuleType.EEG_TO_EEG) { "Bandpass modules must declare eeg_to_eeg" }
     }
 
     override fun reset() {
@@ -50,7 +50,7 @@ class BandPassEegModule(
 
     override fun process(samples: List<SignalSample>, sampleRateHz: Double): ProcessingModuleOutput {
         if (samples.isEmpty()) return EegSignalModuleOutput(emptyList())
-        require(highCutHz < sampleRateHz / 2.0) { "高截止频率必须低于 Nyquist 频率" }
+        require(highCutHz < sampleRateHz / 2.0) { "High cutoff must stay below the Nyquist frequency" }
         if (this.sampleRateHz != sampleRateHz || highPassSections.isEmpty()) {
             configure(sampleRateHz)
         }
@@ -93,9 +93,9 @@ class BandPassEegModule(
 
         private fun builtInDescriptor() = ProcessingModuleDescriptor(
             id = "builtin.bandpass-1-40",
-            displayName = "1–40 Hz 带通滤波",
+            displayName = "1–40 Hz Bandpass",
             version = "1.0.0",
-            description = "连续状态 Butterworth 2 阶高通 + 2 阶低通，输出 8 通道滤波脑电。",
+            description = "Stateful Butterworth high-pass and low-pass filtering across eight EEG channels.",
             type = ProcessingModuleType.EEG_TO_EEG,
             engine = "butterworth_bandpass",
             origin = ProcessingModuleOrigin.BUILT_IN,
@@ -114,10 +114,10 @@ class WindowStatisticsFeatureModule(
     private var lastSampleIndex: Long? = null
 
     init {
-        require(windowSeconds in 0.25..30.0) { "特征窗口必须在 0.25–30 秒之间" }
-        require(strideSeconds in 0.1..windowSeconds) { "特征步长必须在 0.1 秒与窗口长度之间" }
+        require(windowSeconds in 0.25..30.0) { "Feature window must be between 0.25 and 30 seconds" }
+        require(strideSeconds in 0.1..windowSeconds) { "Feature stride must be between 0.1 seconds and window length" }
         require(descriptor.type == ProcessingModuleType.EEG_TO_FEATURES) {
-            "窗口统计模块必须声明 eeg_to_features"
+            "Window features must declare eeg_to_features"
         }
     }
 
@@ -154,7 +154,7 @@ class WindowStatisticsFeatureModule(
                 val rms = sqrt(channelValues.sumOf { (it - mean) * (it - mean) } / channelValues.size)
                 val peakToPeak = (channelValues.maxOrNull() ?: 0.0) - (channelValues.minOrNull() ?: 0.0)
                 add(ModuleFeatureValue("ch${channel + 1}.rms", "RMS", rms, "µV", channel + 1))
-                add(ModuleFeatureValue("ch${channel + 1}.ptp", "峰峰值", peakToPeak, "µV", channel + 1))
+                add(ModuleFeatureValue("ch${channel + 1}.ptp", "Peak-to-peak", peakToPeak, "µV", channel + 1))
             }
         }
         return FeatureModuleOutput(values, samples.last().receivedAtNanos)
@@ -165,9 +165,9 @@ class WindowStatisticsFeatureModule(
 
         private fun builtInDescriptor() = ProcessingModuleDescriptor(
             id = "builtin.window-statistics",
-            displayName = "窗口统计特征",
+            displayName = "Window statistics",
             version = "1.0.0",
-            description = "脑电转多特征示例：每通道输出去直流 RMS 与峰峰值，并保留历史曲线。",
+            description = "Per-channel detrended RMS and peak-to-peak features with history.",
             type = ProcessingModuleType.EEG_TO_FEATURES,
             engine = "window_statistics",
             origin = ProcessingModuleOrigin.BUILT_IN,
@@ -181,22 +181,22 @@ class DeclarativeModuleFactory {
         manifest: String,
         origin: ProcessingModuleOrigin = ProcessingModuleOrigin.IMPORTED,
     ): EegProcessingModule {
-        require(manifest.length <= MAX_MANIFEST_CHARS) { "模块清单不能超过 64 KiB" }
+        require(manifest.length <= MAX_MANIFEST_CHARS) { "Module manifest must not exceed 64 KiB" }
         val root = runCatching { Json.parseToJsonElement(manifest).jsonObject }
-            .getOrElse { throw IllegalArgumentException("模块清单不是有效 JSON", it) }
-        require(root.int("schemaVersion") == 1) { "仅支持 schemaVersion 1" }
+            .getOrElse { throw IllegalArgumentException("Module manifest is not valid JSON", it) }
+        require(root.int("schemaVersion") == 1) { "Only schemaVersion 1 is supported" }
         val id = root.string("id")
-        require(id.matches(ID_PATTERN)) { "模块 ID 只能包含字母、数字、点、下划线和短横线" }
-        val displayName = root.string("name").also { require(it.length in 2..40) { "模块名称长度应为 2–40" } }
-        val version = root.string("version").also { require(it.matches(VERSION_PATTERN)) { "模块版本格式无效" } }
+        require(id.matches(ID_PATTERN)) { "Module IDs may use letters, digits, dots, underscores, and hyphens" }
+        val displayName = root.string("name").also { require(it.length in 2..40) { "Module name length must be 2–40 characters" } }
+        val version = root.string("version").also { require(it.matches(VERSION_PATTERN)) { "Invalid module version" } }
         val engine = root.string("engine")
         val declaredType = when (root.string("type")) {
             "eeg_to_eeg" -> ProcessingModuleType.EEG_TO_EEG
             "eeg_to_features" -> ProcessingModuleType.EEG_TO_FEATURES
-            else -> throw IllegalArgumentException("模块 type 必须为 eeg_to_eeg 或 eeg_to_features")
+            else -> throw IllegalArgumentException("Module type must be eeg_to_eeg or eeg_to_features")
         }
-        val description = (root.optionalString("description") ?: "导入的 BrainExporter 处理模块")
-            .also { require(it.length <= 240) { "模块描述不能超过 240 个字符" } }
+        val description = (root.optionalString("description") ?: "Imported BrainExporter module")
+            .also { require(it.length <= 240) { "Module description must not exceed 240 characters" } }
         val descriptor = ProcessingModuleDescriptor(
             id = id,
             displayName = displayName,
@@ -209,7 +209,7 @@ class DeclarativeModuleFactory {
         val config = root["config"]?.jsonObject ?: JsonObject(emptyMap())
         return when (engine) {
             "butterworth_bandpass" -> {
-                require(declaredType == ProcessingModuleType.EEG_TO_EEG) { "带通引擎输出类型必须为 eeg_to_eeg" }
+                require(declaredType == ProcessingModuleType.EEG_TO_EEG) { "Bandpass output must be eeg_to_eeg" }
                 BandPassEegModule(
                     lowCutHz = config.double("lowCutHz"),
                     highCutHz = config.double("highCutHz"),
@@ -220,7 +220,7 @@ class DeclarativeModuleFactory {
 
             "window_statistics" -> {
                 require(declaredType == ProcessingModuleType.EEG_TO_FEATURES) {
-                    "窗口统计引擎输出类型必须为 eeg_to_features"
+                    "Window statistics output must be eeg_to_features"
                 }
                 WindowStatisticsFeatureModule(
                     windowSeconds = config.optionalDouble("windowSeconds") ?: 2.0,
@@ -229,24 +229,24 @@ class DeclarativeModuleFactory {
                 )
             }
 
-            else -> throw IllegalArgumentException("不支持的安全处理引擎：$engine")
+            else -> throw IllegalArgumentException("Unsupported processing engine: $engine")
         }
     }
 
     private fun JsonObject.string(key: String): String =
         optionalString(key)?.takeIf(String::isNotBlank)
-            ?: throw IllegalArgumentException("模块清单缺少 $key")
+            ?: throw IllegalArgumentException("Module manifest missing $key")
 
     private fun JsonObject.optionalString(key: String): String? =
         this[key]?.jsonPrimitive?.content?.trim()
 
     private fun JsonObject.int(key: String): Int =
-        optionalInt(key) ?: throw IllegalArgumentException("模块清单缺少整数 $key")
+        optionalInt(key) ?: throw IllegalArgumentException("Module manifest missing integer $key")
 
     private fun JsonObject.optionalInt(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
 
     private fun JsonObject.double(key: String): Double =
-        optionalDouble(key) ?: throw IllegalArgumentException("模块清单缺少数字 $key")
+        optionalDouble(key) ?: throw IllegalArgumentException("Module manifest missing number $key")
 
     private fun JsonObject.optionalDouble(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
 
