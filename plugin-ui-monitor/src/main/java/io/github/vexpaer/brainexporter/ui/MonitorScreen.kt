@@ -3,6 +3,10 @@ package io.github.vexpaer.brainexporter.ui
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -18,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,6 +98,9 @@ internal fun MonitorScreen(
     controller: MonitorController,
     permissionGate: PermissionGate,
     recordingPermissionGate: RecordingPermissionGate,
+    demo: Boolean = false,
+    onStartDemo: () -> Unit = {},
+    onExitDemo: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var panelVisible by rememberSaveable { mutableStateOf(false) }
@@ -118,6 +126,7 @@ internal fun MonitorScreen(
                     busy = busy,
                     scanning = scanning,
                     onScan = { permissionGate(controller::scan) },
+                    onStartDemo = onStartDemo,
                     onOpenPanel = { panelVisible = true },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -129,6 +138,8 @@ internal fun MonitorScreen(
                     selectedChannels = selectedChannels,
                     demean = demean,
                     onOpenPanel = { panelVisible = true },
+                    demo = demo,
+                    onExitDemo = onExitDemo,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -148,10 +159,11 @@ internal fun MonitorScreen(
                 controller = controller,
                 permissionGate = permissionGate,
                 connected = connected,
+                demo = demo,
                 selectedChannels = selectedChannels,
                 demean = demean,
                 onDemeanChange = { demean = it },
-                onImpedanceRequest = { impedanceRequest = it },
+                onImpedanceRequest = { if (demo) controller.startImpedance(it.takeIf { ch -> ch > 0 }) else impedanceRequest = it },
             )
         }
     }
@@ -184,74 +196,60 @@ private fun ConnectHero(
     busy: Boolean,
     scanning: Boolean,
     onScan: () -> Unit,
+    onStartDemo: () -> Unit,
     onOpenPanel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduced = rememberReduceMotion()
+    val sweep = if (reduced) 0f else {
+        val transition = rememberInfiniteTransition(label = "scan-orbit")
+        transition.animateFloat(0f, 360f, infiniteRepeatable(tween(7_000, easing = LinearEasing)), label = "scan-angle").value
+    }
     PlanetScaffold(modifier = modifier, atmospheric = true) {
-        IconButton(
-            onClick = onOpenPanel,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(horizontal = Spacing.S, vertical = Spacing.XS),
-        ) {
-            Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
+        IconButton(onClick = onOpenPanel, modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.S)) {
+            Icon(Icons.Filled.Tune, contentDescription = "Controls", tint = MoonDust)
         }
         Column(
-            modifier = Modifier.align(Alignment.Center).padding(horizontal = Spacing.XXL),
+            modifier = Modifier.align(Alignment.Center).padding(horizontal = 30.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.L),
+            verticalArrangement = Arrangement.spacedBy(19.dp),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(132.dp).border(1.dp, Hairline, CircleShape))
-                Button(
-                    onClick = onScan,
-                    enabled = !busy,
-                    modifier = Modifier.size(96.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = OrbitBlue,
-                        contentColor = OnOrbit,
-                    ),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (busy || scanning) {
-                            CircularProgressIndicator(
-                                Modifier.size(22.dp),
-                                color = OnOrbit,
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.GraphicEq,
-                                contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                        Text(
-                            if (scanning) "Scanning" else if (busy) "Connecting" else "Scan",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+            Text("Find your signal.", color = Starlight, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Canvas(Modifier.size(214.dp)) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val radius = size.minDimension * 0.45f
+                for (ring in 1..3) {
+                    drawCircle(Starlight.copy(alpha = 0.08f + ring * 0.035f),
+                        radius * ring / 3f, center, style = Stroke(width = 1.dp.toPx()))
                 }
+                drawLine(Starlight.copy(alpha = 0.16f), Offset(center.x, 0f),
+                    Offset(center.x, size.height), strokeWidth = 1.dp.toPx())
+                drawLine(Starlight.copy(alpha = 0.16f), Offset(0f, center.y),
+                    Offset(size.width, center.y), strokeWidth = 1.dp.toPx())
+                drawArc(
+                    Starlight.copy(alpha = 0.9f), startAngle = sweep - 90f, sweepAngle = 86f,
+                    useCenter = false, topLeft = Offset(center.x - radius, center.y - radius),
+                    size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+                )
+                drawCircle(Starlight, radius = 4.dp.toPx(), center = center)
+                drawCircle(Starlight.copy(alpha = 0.12f), radius = 14.dp.toPx(), center = center)
             }
-            Text(
-                text = if (scanning) "Searching for EEG devices…" else "Connect your EEG device",
-                color = Starlight,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                "RT-BCI / ADS1299 · BLE",
-                color = MoonDust,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-            )
+            Text(if (scanning) "Searching…" else "Wireless EEG", color = MoonDust,
+                style = MaterialTheme.typography.labelLarge)
+            Button(
+                onClick = onScan, enabled = !busy && !scanning,
+                modifier = Modifier.fillMaxWidth().height(56.dp), shape = ShapeM,
+                colors = ButtonDefaults.buttonColors(containerColor = Starlight, contentColor = Void),
+            ) {
+                if (busy || scanning) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Void)
+                else Icon(Icons.Filled.GraphicEq, contentDescription = null, modifier = Modifier.size(21.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(if (scanning) "Scanning…" else "Scan devices", fontWeight = FontWeight.SemiBold)
+            }
+            OutlinedButton(onClick = onStartDemo, modifier = Modifier.fillMaxWidth().height(54.dp), shape = ShapeM) {
+                Text("Explore demo", color = Starlight)
+            }
         }
     }
 }
@@ -265,6 +263,8 @@ private fun ConnectedStage(
     selectedChannels: List<Int>,
     demean: Boolean,
     onOpenPanel: () -> Unit,
+    demo: Boolean,
+    onExitDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val analysisByChannel = remember(snapshot.analyses) { snapshot.analyses.associateBy { it.channel } }
@@ -281,7 +281,7 @@ private fun ConnectedStage(
         }
         when {
             snapshot.activeView == MonitorView.IMPEDANCE ->
-                ImmersiveImpedance(snapshot = snapshot, modifier = Modifier.fillMaxSize())
+                ImmersiveImpedance(snapshot = snapshot, demo = demo, modifier = Modifier.fillMaxSize())
             snapshot.selectedModuleType == ProcessingModuleType.EEG_TO_FEATURES ->
                 FeatureMatrix(snapshot = snapshot, modifier = Modifier.fillMaxSize())
             else ->
@@ -304,17 +304,17 @@ private fun ConnectedStage(
             horizontalArrangement = Arrangement.spacedBy(Spacing.XXS),
         ) {
             StatusPill(
-                dotColor = Success,
-                label = "${snapshot.connection.deviceName ?: "RT-BCI"} · ${metricsText(snapshot)}",
+                dotColor = if (demo) MoonDust else Success,
+                label = if (demo) "SIMULATED · 250 Hz" else "${snapshot.connection.deviceName ?: "EEG"} · ${metricsText(snapshot)}",
                 modifier = Modifier.weight(1f, fill = false).semantics {
-                    contentDescription = "Connected ${snapshot.connection.deviceName ?: "device"}，sample rate ${metricsText(snapshot)}"
+                    contentDescription = if (demo) "Simulated EEG data" else "Connected EEG · ${metricsText(snapshot)}"
                 },
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onOpenPanel) {
                 Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
             }
-            IconButton(onClick = { controller.disconnect() }) {
+            IconButton(onClick = { if (demo) onExitDemo() else controller.disconnect() }) {
                 Icon(imageVector = Icons.Filled.PowerSettingsNew, contentDescription = "Disconnect device", tint = MoonDust)
             }
         }
@@ -323,7 +323,7 @@ private fun ConnectedStage(
             val acquisition = snapshot.acquisition
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = acquisition.message,
+                    text = if (demo) "Demo signal" else acquisition.message,
                     color = if (acquisition.active) OrbitBlue else MoonDust,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -335,14 +335,16 @@ private fun ConnectedStage(
                     )
                 }
             }
-            if (snapshot.activeView != MonitorView.IMPEDANCE &&
+            if (!demo && snapshot.activeView != MonitorView.IMPEDANCE &&
                 snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES
             ) {
                 OutlinedButton(onClick = { controller.setView(MonitorView.IMPEDANCE) }) {
                     Text("Impedance")
                 }
             }
-            if (acquisition.active) {
+            if (demo) {
+                OutlinedButton(onClick = onExitDemo) { Text("Exit demo") }
+            } else if (acquisition.active) {
                 Button(
                     onClick = controller::stopAcquisition,
                     colors = ButtonDefaults.buttonColors(containerColor = Danger, contentColor = Color(0xFF2A0709)),
@@ -547,6 +549,7 @@ private fun FeatureHero(series: ModuleFeatureSeries) {
 @Composable
 private fun ImmersiveImpedance(
     snapshot: MonitorSnapshot,
+    demo: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val impedance = snapshot.impedance
@@ -555,7 +558,7 @@ private fun ImmersiveImpedance(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.S),
         ) {
-            Text("ADS1299 impedance", color = MoonDust, style = MaterialTheme.typography.labelLarge)
+            Text(if (demo) "Simulated impedance" else "Impedance", color = MoonDust, style = MaterialTheme.typography.labelLarge)
             if (impedance.running) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(54.dp),
@@ -626,6 +629,7 @@ private fun ControlPanel(
     controller: MonitorController,
     permissionGate: PermissionGate,
     connected: Boolean,
+    demo: Boolean,
     selectedChannels: MutableList<Int>,
     demean: Boolean,
     onDemeanChange: (Boolean) -> Unit,
@@ -645,9 +649,11 @@ private fun ControlPanel(
             )
         }
 
-        item { SectionLabel("device") }
+        item { SectionLabel(if (demo) "SIMULATED" else "DEVICE") }
         item {
-            if (connected) {
+            if (demo) {
+                Text("Synthetic signal · on-device preview", color = MoonDust)
+            } else if (connected) {
                 InstrumentSurface(color = Obsidian) {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -676,7 +682,7 @@ private fun ControlPanel(
                         }
                     } else {
                         Text(
-                            "Select a discovered RT-BCI device.",
+                            "Select a device.",
                             color = MoonDust,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -704,11 +710,13 @@ private fun ControlPanel(
                     Text(it, color = MoonDust, style = MaterialTheme.typography.labelSmall)
                 }
                 acquisition.error?.let { Text(it, color = Danger) }
-                Text(
-                    "CSV · Documents/eegData",
-                    color = MoonDust.copy(alpha = 0.85f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                if (!demo) {
+                    Text(
+                        "CSV · Documents/eegData",
+                        color = MoonDust.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
 
@@ -800,6 +808,7 @@ private fun ControlPanel(
             item {
                 ImpedanceToolbar(
                     snapshot = snapshot,
+                    demo = demo,
                     onMeasureAll = { onImpedanceRequest(0) },
                     onStop = controller::stopImpedance,
                 )
@@ -914,13 +923,14 @@ private fun MetricCard(label: String, value: String, detail: String) {
 @Composable
 private fun ImpedanceToolbar(
     snapshot: MonitorSnapshot,
+    demo: Boolean,
     onMeasureAll: () -> Unit,
     onStop: () -> Unit,
 ) {
     InstrumentSurface(color = Obsidian) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-            Text("ADS1299 impedance", color = Starlight, fontWeight = FontWeight.SemiBold)
-            Text("6 nA · 31.2 Hz · 5s/channel", color = MoonDust, style = MaterialTheme.typography.bodySmall)
+            Text(if (demo) "Simulated impedance" else "Impedance", color = Starlight, fontWeight = FontWeight.SemiBold)
+            Text(if (demo) "Illustrative data only" else "6 nA · 31.2 Hz · 5s/channel", color = MoonDust, style = MaterialTheme.typography.bodySmall)
             if (snapshot.impedance.running) {
                 Text(
                     "CH ${snapshot.impedance.channel ?: "—"} · ${(snapshot.impedance.progress * 100).toInt()}%",

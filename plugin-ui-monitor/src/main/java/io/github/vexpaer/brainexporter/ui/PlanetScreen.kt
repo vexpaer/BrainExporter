@@ -71,6 +71,7 @@ private enum class OrbitalPalette { FOCUS, REST }
 internal fun PlanetHomeScreen(
     connectionPhase: ConnectionPhase,
     onOpenMonitor: () -> Unit,
+    onOpenDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReduceMotion()
@@ -125,7 +126,7 @@ internal fun PlanetHomeScreen(
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "Neural signals.\nIn real time.",
+                            "See the signal.",
                             style = MaterialTheme.typography.headlineLarge.copy(lineHeight = 40.sp),
                             color = Starlight,
                             fontWeight = FontWeight.SemiBold,
@@ -162,7 +163,7 @@ internal fun PlanetHomeScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         StatusPill(
                             dotColor = if (connectionPhase == ConnectionPhase.CONNECTED) Success else MoonDust,
-                            label = if (connectionPhase == ConnectionPhase.CONNECTED) "EEG connected" else "Ready to connect",
+                            label = if (connectionPhase == ConnectionPhase.CONNECTED) "EEG connected" else "Ready",
                             textColor = Starlight,
                         )
                         Button(
@@ -176,8 +177,11 @@ internal fun PlanetHomeScreen(
                                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(19.dp))
                             }
                         }
+                        androidx.compose.material3.TextButton(onClick = onOpenDemo) {
+                            Text("Explore demo", color = Starlight)
+                        }
                         Text(
-                            "8 CHANNELS  /  BLE  /  LIVE ANALYSIS  /  CSV",
+                            "8 CHANNELS  /  LIVE EEG",
                             color = MoonDust,
                             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
                         )
