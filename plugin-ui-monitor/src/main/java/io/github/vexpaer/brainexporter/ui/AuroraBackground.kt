@@ -49,7 +49,7 @@ internal fun AuroraBackground(modifier: Modifier = Modifier, quiet: Boolean = fa
         val w = size.width
         val h = size.height
         val extent = max(w, h)
-        val gain = if (quiet) 0.36f else 1f
+        val gain = if (quiet) 0.16f else 0.62f
 
         fun glow(color: Color, x: Float, y: Float, radius: Float, alpha: Float) {
             drawRect(
@@ -64,10 +64,10 @@ internal fun AuroraBackground(modifier: Modifier = Modifier, quiet: Boolean = fa
                 ),
             )
         }
-        glow(OrbitBlue, 0.18f + 0.15f * sin(phase), 0.24f + 0.12f * cos(phase), 0.68f, 0.34f)
-        glow(LunarViolet, 0.81f + 0.12f * cos(phase * 0.83f), 0.42f + 0.13f * sin(phase), 0.65f, 0.27f)
-        glow(AuroraRose, 0.42f + 0.16f * cos(phase * 0.71f), 0.82f + 0.08f * sin(phase * 0.93f), 0.60f, 0.19f)
-        glow(AuroraAmber, 0.63f + 0.12f * sin(phase * 1.13f), 0.11f + 0.08f * cos(phase), 0.52f, 0.16f)
+        glow(Starlight, 0.18f + 0.15f * sin(phase), 0.24f + 0.12f * cos(phase), 0.68f, 0.24f)
+        glow(MoonDust, 0.81f + 0.12f * cos(phase * 0.83f), 0.42f + 0.13f * sin(phase), 0.65f, 0.20f)
+        glow(AuroraRose, 0.42f + 0.16f * cos(phase * 0.71f), 0.82f + 0.08f * sin(phase * 0.93f), 0.60f, 0.13f)
+        glow(AuroraAmber, 0.63f + 0.12f * sin(phase * 1.13f), 0.11f + 0.08f * cos(phase), 0.52f, 0.12f)
         drawRect(Brush.verticalGradient(0f to Void.copy(alpha = 0.06f), 1f to Void.copy(alpha = 0.57f)))
         grain.forEach { p ->
             drawCircle(

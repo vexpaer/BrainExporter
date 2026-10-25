@@ -28,6 +28,10 @@ A deliberately minimal visual system: slowly drifting aurora lighting, quiet ins
 
 The app has four primary sections: **Home, Monitor, Modules and Account**. The EEG acquisition and export workflow remains the focus.
 
+## Try it without hardware
+
+Open **Monitor → Explore demo** to preview eight channels, spectral views and sample impedance. The signal is **synthetic**, runs entirely on-device and cannot be recorded or exported. **Exit demo** to return to real BLE acquisition.
+
 ## Quick start
 
 1. Install the [latest APK](https://github.com/vexpaer/BrainExporter/releases/latest) and enable Bluetooth.

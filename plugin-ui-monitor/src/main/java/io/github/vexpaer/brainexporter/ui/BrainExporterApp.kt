@@ -8,6 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import io.github.vexpaer.brainexporter.sdk.MonitorController
 import io.github.vexpaer.brainexporter.sdk.MonitorSnapshot
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 /** Permission gates are supplied by the host app; the UI plug-in stays testable. */
 typealias PermissionGate = (onGranted: () -> Unit) -> Unit
@@ -109,9 +112,22 @@ fun BrainExporterApp(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val accountStore = remember(context) { LocalAccountStore(context) }
+    val demoController = remember { DemoSignalController() }
+    var demoEnabled by rememberSaveable { mutableStateOf(false) }
+    var demoSnapshot by remember { mutableStateOf(demoController.snapshot()) }
+    DisposableEffect(demoController) {
+        val subscription = demoController.addListener { demoSnapshot = it }
+        onDispose { subscription.close() }
+    }
 
     BrainExporterTheme {
         var page by rememberSaveable { mutableIntStateOf(0) }
+        LaunchedEffect(demoEnabled, page) {
+            while (demoEnabled && page == 1) {
+                demoController.advance()
+                delay(128L)
+            }
+        }
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         val notice: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
@@ -193,10 +209,16 @@ fun BrainExporterApp(
                     if (reduceMotion) {
                         fadeIn(snap()).togetherWith(fadeOut(snap()))
                     } else {
-                        (fadeIn(tween(Motion.StandardMs, easing = Motion.Emphasized)) + scaleIn(
-                            initialScale = 0.985f,
-                            animationSpec = tween(Motion.StandardMs, easing = Motion.Emphasized),
-                        )).togetherWith(fadeOut(tween(Motion.FastMs)))
+                        val direction = if (targetState > initialState) 1 else -1
+                        (fadeIn(tween(230, easing = Motion.Emphasized)) +
+                            slideInHorizontally(tween(340, easing = Motion.Emphasized)) {
+                                (it * 0.14f).toInt() * direction
+                            }).togetherWith(
+                                fadeOut(tween(130)) +
+                                    slideOutHorizontally(tween(200)) {
+                                        (-it * 0.08f).toInt() * direction
+                                    },
+                            )
                     }
                 },
                 label = "page-transition",
@@ -205,13 +227,17 @@ fun BrainExporterApp(
                     0 -> PlanetHomeScreen(
                         connectionPhase = snapshot.connection.phase,
                         onOpenMonitor = { page = 1 },
+                        onOpenDemo = { demoEnabled = true; page = 1 },
                         modifier = Modifier.padding(padding),
                     )
                     1 -> MonitorScreen(
-                        snapshot = snapshot,
-                        controller = controller,
+                        snapshot = if (demoEnabled) demoSnapshot else snapshot,
+                        controller = if (demoEnabled) demoController else controller,
                         permissionGate = permissionGate,
                         recordingPermissionGate = recordingPermissionGate,
+                        demo = demoEnabled,
+                        onStartDemo = { demoEnabled = true },
+                        onExitDemo = { demoEnabled = false },
                         modifier = Modifier.padding(padding),
                     )
                     2 -> ModuleScreen(

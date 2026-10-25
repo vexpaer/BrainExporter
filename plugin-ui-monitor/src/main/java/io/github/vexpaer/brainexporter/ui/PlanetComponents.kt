@@ -7,6 +7,10 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -265,59 +269,56 @@ internal fun OrbitalNavigation(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    val reduced = rememberReduceMotion()
+    BoxWithConstraints(
         modifier = modifier
             .padding(horizontal = Spacing.L)
             .navigationBarsPadding()
             .padding(bottom = Spacing.S)
             .fillMaxWidth()
-            .height(62.dp)
+            .height(68.dp)
             .clip(ShapeL)
-            .background(Obsidian.copy(alpha = 0.94f))
+            .background(Obsidian)
             .border(1.dp, Hairline, ShapeL),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEachIndexed { index, item ->
-            val isSelected = index == selectedIndex
-            val lift by animateFloatAsState(
-                targetValue = if (isSelected) -2f else 0f,
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = 470f),
-                label = "nav-lift",
-            )
-            val tint by animateColorAsState(
-                targetValue = if (isSelected) OrbitBlue else MoonDust,
-                animationSpec = tween(Motion.FastMs),
-                label = "nav-tint",
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        onClickLabel = item.label,
-                        role = Role.Tab,
-                    ) { onSelect(index) }
-                    .semantics {
-                        role = Role.Tab
-                        selected = isSelected
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+        val tabWidth = maxWidth / items.size
+        val indicatorX by animateDpAsState(
+            targetValue = tabWidth * selectedIndex,
+            animationSpec = if (reduced) snap() else spring(dampingRatio = 0.84f, stiffness = 440f),
+            label = "nav-slider",
+        )
+        Box(
+            Modifier.offset(x = indicatorX).width(tabWidth).fillMaxHeight()
+                .padding(4.dp).clip(ShapeM).background(Starlight),
+        )
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            items.forEachIndexed { index, item ->
+                val active = index == selectedIndex
+                val color by animateColorAsState(
+                    targetValue = if (active) Void else MoonDust,
+                    animationSpec = if (reduced) snap() else tween(175),
+                    label = "nav-color",
+                )
+                val scale by animateFloatAsState(
+                    targetValue = if (active) 1.06f else 0.96f,
+                    animationSpec = if (reduced) snap() else spring(dampingRatio = 0.76f, stiffness = 520f),
+                    label = "nav-scale",
+                )
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                        .clickable(onClickLabel = item.label, role = Role.Tab) { onSelect(index) }
+                        .semantics { role = Role.Tab; selected = active },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                Icon(
-                    imageVector = item.icon,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(21.dp).graphicsLayer { translationY = lift.dp.toPx() },
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(text = item.label, color = tint, style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .background(if (isSelected) OrbitBlue else Color.Transparent, androidx.compose.foundation.shape.CircleShape),
-                )
+                    Icon(
+                        item.icon, contentDescription = null, tint = color,
+                        modifier = Modifier.size(21.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(item.label, color = color, style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+                }
             }
         }
     }
