@@ -2,14 +2,13 @@ package io.github.vexpaer.brainexporter.ui
 
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,27 +44,23 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,17 +102,21 @@ internal fun MonitorScreen(
     var demean by rememberSaveable { mutableStateOf(true) }
     var impedanceRequest by remember { mutableIntStateOf(-1) }
 
+    val reduceMotion = rememberReduceMotion()
     Box(modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = connected,
             transitionSpec = {
-                fadeIn(tween(Motion.StandardMs, easing = Motion.Emphasized))
+                if (reduceMotion) fadeIn(snap()).togetherWith(fadeOut(snap()))
+                else fadeIn(tween(Motion.StandardMs, easing = Motion.Emphasized))
                     .togetherWith(fadeOut(tween(Motion.FastMs)))
             },
             label = "monitor-mode",
         ) { isConnected ->
             if (!isConnected) {
                 ConnectHero(
+                    snapshot = snapshot,
+                    onConnect = controller::connect,
                     busy = busy,
                     scanning = scanning,
                     onScan = { permissionGate(controller::scan) },
@@ -181,77 +183,35 @@ internal fun MonitorScreen(
 /** 未Connection时的极简引导:一个主按钮 + 一句话 + 面板入口。 */
 @Composable
 private fun ConnectHero(
-    busy: Boolean,
-    scanning: Boolean,
-    onScan: () -> Unit,
-    onOpenPanel: () -> Unit,
+    snapshot: MonitorSnapshot, onConnect: (String) -> Unit,
+    busy: Boolean, scanning: Boolean, onScan: () -> Unit, onOpenPanel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    PlanetScaffold(modifier = modifier, atmospheric = true) {
-        IconButton(
-            onClick = onOpenPanel,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(horizontal = Spacing.S, vertical = Spacing.XS),
-        ) {
-            Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
-        }
-        Column(
-            modifier = Modifier.align(Alignment.Center).padding(horizontal = Spacing.XXL),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.L),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(132.dp).border(1.dp, Hairline, CircleShape))
-                Button(
-                    onClick = onScan,
-                    enabled = !busy,
-                    modifier = Modifier.size(96.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = OrbitBlue,
-                        contentColor = OnOrbit,
-                    ),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (busy || scanning) {
-                            CircularProgressIndicator(
-                                Modifier.size(22.dp),
-                                color = OnOrbit,
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.GraphicEq,
-                                contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                        Text(
-                            if (scanning) "Scanning" else if (busy) "Connecting" else "Scan",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+    LazyColumn(modifier, contentPadding = PaddingValues(Spacing.XL), verticalArrangement = Arrangement.spacedBy(Spacing.M)) {
+        item { PageHeader("Monitor", "Connect to your EEG device") }
+        item {
+            InstrumentSurface {
+                EmptyState(Icons.Filled.GraphicEq, "Ready when you are", "RT-BCI / ADS1299 · 8 channels · Bluetooth Low Energy", tint = OrbitBlue)
+                Button(onClick = onScan, enabled = !busy && !scanning, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    if (busy || scanning) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
                     }
+                    Text(if (busy) "Connecting…" else if (scanning) "Scanning…" else "Scan for devices")
                 }
+                TextButton(onClick = onOpenPanel) { Text("Monitor controls") }
             }
-            Text(
-                text = if (scanning) "Searching for EEG devices…" else "Connect your EEG device",
-                color = Starlight,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                "RT-BCI / ADS1299 · BLE",
-                color = MoonDust,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-            )
+        }
+        if (snapshot.connection.phase == ConnectionPhase.ERROR) {
+            item { Text(snapshot.connection.message, color = Danger) }
+        }
+        if (snapshot.devices.isNotEmpty()) {
+            item { SectionLabel("Available devices") }
+            items(snapshot.devices, key = { it.id }) { device ->
+                DeviceRow(device = device, onConnect = { if (!busy) onConnect(device.id) })
+            }
+        } else {
+            item { Text(if (scanning) "Keep your powered EEG board nearby." else "Power on your board, then scan to find it.", color = MoonDust, style = MaterialTheme.typography.bodyMedium) }
         }
     }
 }
@@ -268,90 +228,35 @@ private fun ConnectedStage(
     modifier: Modifier = Modifier,
 ) {
     val analysisByChannel = remember(snapshot.analyses) { snapshot.analyses.associateBy { it.channel } }
-    Box(modifier.background(Void)) {
-        AuroraBackground(Modifier.fillMaxSize(), quiet = true)
-        Canvas(Modifier.fillMaxSize()) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    0f to PlanetPalette.backgroundTop.copy(alpha = 0.24f),
-                    0.5f to Color.Transparent,
-                    1f to PlanetPalette.backgroundMid.copy(alpha = 0.30f),
-                ),
-            )
-        }
-        when {
-            snapshot.activeView == MonitorView.IMPEDANCE ->
-                ImmersiveImpedance(snapshot = snapshot, modifier = Modifier.fillMaxSize())
-            snapshot.selectedModuleType == ProcessingModuleType.EEG_TO_FEATURES ->
-                FeatureMatrix(snapshot = snapshot, modifier = Modifier.fillMaxSize())
-            else ->
-                ImmersiveSignalCanvas(
-                    snapshot = snapshot,
-                    analysisByChannel = analysisByChannel,
-                    selectedChannels = selectedChannels,
-                    demean = demean,
-                    activeView = snapshot.activeView,
-                    modifier = Modifier.fillMaxSize().padding(bottom = 104.dp),
-                )
-        }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(horizontal = Spacing.M, vertical = Spacing.XS)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.XXS),
-        ) {
-            StatusPill(
-                dotColor = Success,
-                label = "${snapshot.connection.deviceName ?: "RT-BCI"} · ${metricsText(snapshot)}",
-                modifier = Modifier.weight(1f, fill = false).semantics {
-                    contentDescription = "Connected ${snapshot.connection.deviceName ?: "device"}，sample rate ${metricsText(snapshot)}"
-                },
-            )
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onOpenPanel) {
-                Icon(imageVector = Icons.Filled.Tune, contentDescription = "Open monitor controls", tint = MoonDust)
-            }
-            IconButton(onClick = { controller.disconnect() }) {
-                Icon(imageVector = Icons.Filled.PowerSettingsNew, contentDescription = "Disconnect device", tint = MoonDust)
-            }
-        }
-
-        PrimaryActionDock {
-            val acquisition = snapshot.acquisition
+    Column(modifier.background(MaterialTheme.colorScheme.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.M, vertical = Spacing.XS), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = acquisition.message,
-                    color = if (acquisition.active) OrbitBlue else MoonDust,
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                Text(snapshot.connection.deviceName ?: "RT-BCI", style = MaterialTheme.typography.titleMedium)
+                Text(metricsText(snapshot), color = MoonDust, style = MaterialTheme.typography.bodySmall.numeric())
+            }
+            IconButton(onClick = onOpenPanel) { Icon(Icons.Filled.Tune, "Open monitor controls") }
+            IconButton(onClick = controller::disconnect) { Icon(Icons.Filled.PowerSettingsNew, "Disconnect device") }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                snapshot.activeView == MonitorView.IMPEDANCE -> ImmersiveImpedance(snapshot, Modifier.fillMaxSize())
+                snapshot.selectedModuleType == ProcessingModuleType.EEG_TO_FEATURES -> FeatureMatrix(snapshot, Modifier.fillMaxSize())
+                else -> ImmersiveSignalCanvas(snapshot, analysisByChannel, selectedChannels, demean, snapshot.activeView, Modifier.fillMaxSize())
+            }
+        }
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(Modifier.fillMaxWidth().padding(Spacing.M), verticalArrangement = Arrangement.spacedBy(Spacing.XS)) {
+                val acquisition = snapshot.acquisition
+                Text(acquisition.message, color = if (acquisition.error != null) Danger else MoonDust, style = MaterialTheme.typography.bodySmall)
+                if (acquisition.active) Text("Saved ${acquisition.samplesWritten} samples", style = MaterialTheme.typography.labelMedium.numeric())
+                if (snapshot.activeView != MonitorView.IMPEDANCE && snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES) {
+                    TextButton(onClick = { controller.setView(MonitorView.IMPEDANCE) }) { Text("Impedance") }
+                }
                 if (acquisition.active) {
-                    Text(
-                        "Saved ${acquisition.samplesWritten} samples",
-                        color = MoonDust,
-                        style = MaterialTheme.typography.labelSmall.numeric(),
-                    )
+                    Button(onClick = controller::stopAcquisition, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("Stop recording") }
+                } else {
+                    Button(onClick = { recordingPermissionGate(controller::startAcquisition) }, enabled = !snapshot.impedance.running, modifier = Modifier.fillMaxWidth()) { Text(if (snapshot.impedance.running) "Measuring impedance…" else "Start recording") }
                 }
-            }
-            if (snapshot.activeView != MonitorView.IMPEDANCE &&
-                snapshot.selectedModuleType != ProcessingModuleType.EEG_TO_FEATURES
-            ) {
-                OutlinedButton(onClick = { controller.setView(MonitorView.IMPEDANCE) }) {
-                    Text("Impedance")
-                }
-            }
-            if (acquisition.active) {
-                Button(
-                    onClick = controller::stopAcquisition,
-                    colors = ButtonDefaults.buttonColors(containerColor = Danger, contentColor = Color(0xFF2A0709)),
-                ) { Text("Stop recording") }
-            } else {
-                Button(
-                    onClick = { recordingPermissionGate(controller::startAcquisition) },
-                    enabled = !snapshot.impedance.running,
-                ) { Text(if (snapshot.impedance.running) "Measuring impedance…" else "Start recording") }
             }
         }
     }
@@ -507,7 +412,7 @@ private fun FeatureMatrix(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.M),
-                contentPadding = PaddingValues(top = 68.dp, bottom = 110.dp),
+                contentPadding = PaddingValues(vertical = Spacing.M),
                 verticalArrangement = Arrangement.spacedBy(Spacing.L),
             ) {
                 items(features, key = { it.key }) { series ->
@@ -838,23 +743,7 @@ private val viewOptions = listOf(
 
 @Composable
 private fun ViewChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) MaterialTheme.colorScheme.surfaceContainerHigh else Obsidian
-    val borderColor = if (selected) OrbitBlue.copy(alpha = 0.55f) else Hairline
-    Box(
-        modifier = Modifier
-            .clip(ShapeCapsule)
-            .background(background)
-            .border(1.dp, borderColor, ShapeCapsule)
-            .clickable(onClickLabel = label, onClick = onClick)
-            .padding(horizontal = Spacing.M, vertical = 13.dp),
-    ) {
-        Text(
-            label,
-            color = if (selected) Starlight else MoonDust,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-        )
-    }
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
 }
 
 @Composable
@@ -874,7 +763,7 @@ private fun DeviceRow(device: DeviceDescriptor, onConnect: () -> Unit) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            OutlinedButton(onClick = onConnect) { Text("Connection") }
+            OutlinedButton(onClick = onConnect) { Text("Connect") }
         }
     }
 }

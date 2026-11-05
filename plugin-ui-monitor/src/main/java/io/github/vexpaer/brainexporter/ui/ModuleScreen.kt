@@ -31,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,15 +89,13 @@ internal fun ModuleScreen(
         verticalArrangement = Arrangement.spacedBy(Spacing.M),
     ) {
         item {
-            Row(
+            Column(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(Spacing.M),
             ) {
-                Column(Modifier.weight(1f)) {
+                Column {
                     PageHeader(
-                        overline = "MODULES",
-                        title = "Processing modules",
+                        title = "Modules",
                         subtitle = "Manage signal pipelines",
                     )
                 }
@@ -194,7 +194,7 @@ private fun ModuleCard(
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
-                Switch(checked = module.enabled, onCheckedChange = onEnabledChange)
+                Switch(checked = module.enabled, onCheckedChange = onEnabledChange, modifier = Modifier.semantics { contentDescription = "Enable ${descriptor.displayName}" })
             }
             Text(descriptor.description, color = MoonDust, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XXS), verticalAlignment = Alignment.CenterVertically) {
