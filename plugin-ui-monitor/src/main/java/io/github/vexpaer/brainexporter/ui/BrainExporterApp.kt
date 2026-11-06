@@ -10,30 +10,34 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,30 +47,24 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.vexpaer.brainexporter.sdk.MonitorController
-import io.github.vexpaer.brainexporter.sdk.MonitorSnapshot
 import kotlinx.coroutines.launch
 
 /** Permission gates are supplied by the host app; the UI plug-in stays testable. */
@@ -77,10 +75,10 @@ const val GITHUB_REPOSITORY = "https://github.com/vexpaer/BrainExporter"
 const val GITHUB_RELEASES = "$GITHUB_REPOSITORY/releases/latest"
 
 private val NavItems = listOf(
-    OrbitalItem(Icons.Filled.Public, "Home"),
-    OrbitalItem(Icons.Filled.GraphicEq, "Monitor"),
-    OrbitalItem(Icons.Filled.Extension, "Modules"),
-    OrbitalItem(Icons.Filled.AccountCircle, "Account"),
+    NavigationDestination(Icons.Filled.Home, "Home"),
+    NavigationDestination(Icons.Filled.GraphicEq, "Monitor"),
+    NavigationDestination(Icons.Filled.Extension, "Modules"),
+    NavigationDestination(Icons.Filled.Settings, "Settings"),
 )
 
 @Composable
@@ -112,6 +110,7 @@ fun BrainExporterApp(
 
     BrainExporterTheme {
         var page by rememberSaveable { mutableIntStateOf(0) }
+        BackHandler(enabled = page != 0) { page = 0 }
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         val notice: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
@@ -179,7 +178,7 @@ fun BrainExporterApp(
                 }
             },
             bottomBar = {
-                OrbitalNavigation(
+                AppNavigation(
                     items = NavItems,
                     selectedIndex = page,
                     onSelect = { page = it },
@@ -202,7 +201,7 @@ fun BrainExporterApp(
                 label = "page-transition",
             ) { targetPage ->
                 when (targetPage) {
-                    0 -> PlanetHomeScreen(
+                    0 -> HomeScreen(
                         connectionPhase = snapshot.connection.phase,
                         onOpenMonitor = { page = 1 },
                         modifier = Modifier.padding(padding),
@@ -222,7 +221,7 @@ fun BrainExporterApp(
                         onOpenMonitor = { page = 1 },
                         modifier = Modifier.padding(padding),
                     )
-                    else -> ProfileScreen(
+                    else -> SettingsScreen(
                         store = accountStore,
                         modifier = Modifier.padding(padding),
                         onNotice = notice,
@@ -253,54 +252,21 @@ private fun BrandTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     supportingText: String? = null,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val borderColor = if (focused) OrbitBlue.copy(alpha = 0.7f) else Hairline
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(ShapeM)
-            .background(Obsidian)
-            .border(1.dp, borderColor, ShapeM),
-    ) {
-        Column(Modifier.padding(horizontal = Spacing.M, vertical = Spacing.S)) {
-            Text(
-                text = label.uppercase(),
-                color = if (focused) OrbitBlue else MoonDust,
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-            )
-            Spacer(Modifier.height(Spacing.XXS))
-            androidx.compose.foundation.text.BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = singleLine,
-                minLines = minLines,
-                visualTransformation = visualTransformation,
-                cursorBrush = SolidColor(OrbitBlue),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Starlight),
-                interactionSource = interaction,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (supportingText != null) {
-            Text(
-                text = supportingText,
-                color = MoonDust.copy(alpha = 0.8f),
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = Spacing.M, end = Spacing.M, bottom = Spacing.S),
-            )
-        }
-    }
+    OutlinedTextField(
+        value = value, onValueChange = onValueChange,
+        label = { Text(label) }, modifier = modifier.fillMaxWidth(),
+        singleLine = singleLine, minLines = minLines,
+        visualTransformation = visualTransformation,
+        supportingText = supportingText?.let { message -> { Text(message) } },
+    )
 }
 
 // ---------------------------------------------------------------------------
-// 在线音频设置：清晰字段容器 + 状态反馈 + 版权说明。
+// Settings keeps local profile, updates and privacy in one place.
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun ProfileScreen(
+private fun SettingsScreen(
     store: LocalAccountStore,
     onNotice: (String) -> Unit,
     onOpenGithub: () -> Unit,
@@ -340,7 +306,7 @@ private fun ProfileScreen(
             dismissLabel = "Cancel",
             onDismiss = { showAuth = false },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
                     Text("Credentials stay on this device.")
                     BrandTextField(
                         label = "Username",
@@ -370,50 +336,25 @@ private fun ProfileScreen(
     }
 
     LazyColumn(
-        modifier.fillMaxSize(),
+        modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(Spacing.L),
         verticalArrangement = Arrangement.spacedBy(Spacing.M),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         item {
             PageHeader(
-                overline = "ACCOUNT",
-                title = "Account",
-                subtitle = null,
+                title = "Settings",
+                subtitle = "Local profile, updates and app information",
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         item {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.S),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.XXS),
-            ) {
-                Box(
-                    Modifier
-                        .size(84.dp)
-                        .background(Eclipse, CircleShape)
-                        .border(1.dp, Hairline, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AccountCircle,
-                        contentDescription = "Local account avatar",
-                        tint = OrbitBlue,
-                        modifier = Modifier.size(52.dp),
-                    )
-                }
-                Spacer(Modifier.height(Spacing.XXS))
-                Text(
-                    currentUser ?: "Guest",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Starlight,
-                )
-                Text(
-                    if (currentUser == null) "Stored on this device" else "Signed in locally",
-                    color = MoonDust,
-                    style = MaterialTheme.typography.bodyMedium,
+            InstrumentSurface(contentPadding = PaddingValues(0.dp)) {
+                ListItem(
+                    headlineContent = { Text(currentUser ?: "Guest profile") },
+                    supportingContent = { Text(if (currentUser == null) "Optional account stored on this device" else "Signed in locally") },
+                    leadingContent = { Icon(Icons.Filled.AccountCircle, null, tint = MaterialTheme.colorScheme.primary) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 )
             }
         }
@@ -472,12 +413,11 @@ private fun UpdateCard(
 ) {
     InstrumentSurface {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-            Row(
+            Column(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(Spacing.S),
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SectionLabel("VERSION")
                     Text(
                         "App version · v${state.currentVersion}",
@@ -489,7 +429,9 @@ private fun UpdateCard(
                 val (dot, label) = when (state.phase) {
                     UpdatePhase.UP_TO_DATE -> Success to "Up to date"
                     UpdatePhase.AVAILABLE -> SolarMetal to "Update available"
-                    UpdatePhase.DOWNLOADING, UpdatePhase.READY_TO_INSTALL -> OrbitBlue to "Ready to install"
+                    UpdatePhase.DOWNLOADING -> OrbitBlue to "Downloading"
+                    UpdatePhase.READY_TO_INSTALL -> OrbitBlue to "Ready to install"
+                    UpdatePhase.CHECKING -> OrbitBlue to "Checking"
                     UpdatePhase.ERROR -> Danger to "Check failed"
                     else -> MoonDust to "Not checked"
                 }
@@ -501,16 +443,11 @@ private fun UpdateCard(
                 style = MaterialTheme.typography.bodySmall,
             )
             if (state.phase == UpdatePhase.DOWNLOADING) {
-                Box(Modifier.fillMaxWidth().height(4.dp).background(Hairline, ShapeCapsule)) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth((state.progress ?: 8).coerceIn(1, 100) / 100f)
-                            .height(4.dp)
-                            .background(OrbitBlue, ShapeCapsule),
-                    )
-                }
+                val progress = state.progress
+                if (progress == null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                else LinearProgressIndicator(progress = { progress.coerceIn(0, 100) / 100f }, modifier = Modifier.fillMaxWidth())
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.XS)) {
                 when (state.phase) {
                     UpdatePhase.AVAILABLE -> Button(onClick = onDownload) { Text("Download v${state.availableVersion}") }
                     UpdatePhase.READY_TO_INSTALL -> Button(onClick = onInstall) { Text("Install update") }
@@ -527,28 +464,10 @@ private fun UpdateCard(
 
 @Composable
 private fun ProfileEntry(label: String, detail: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = label, onClick = onClick)
-            .padding(horizontal = Spacing.M, vertical = Spacing.S),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.S),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, color = Starlight, style = MaterialTheme.typography.titleSmall)
-            Text(
-                detail,
-                color = MoonDust,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        androidx.compose.material3.Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MoonDust,
-        )
-    }
+    ListItem(
+        headlineContent = { Text(label) }, supportingContent = { Text(detail) },
+        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClickLabel = label, onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    )
 }

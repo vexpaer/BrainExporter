@@ -1,103 +1,31 @@
-# DESIGN — BrainExporter「星球」高级感视觉契约
+# BrainExporter · Material 3
 
-> 新方向锁定：Planetary Premium / 星球高级感。
-> 目标不是“太空皮肤”，而是“来自行星观测站的精密脑电仪器”。
+The interface uses the Compose Material 3 system: semantic color roles, standard type scales, tonal surfaces and native component behavior. It stays dark to support prolonged EEG monitoring.
 
-## 视觉世界
+## Navigation and layout
 
-BrainExporter 仍然是一部手机里的开源脑电工作台，但视觉语言升级为两种互补节奏：
+- Home · Monitor · Modules · Settings, using `NavigationBar` and selected indicators.
+- Home introduces the supplied black brain/export logo and one primary Monitor action.
+- Monitor shows discovered devices directly. Connected sessions separate status, charts and recording controls so labels never overlap plotted data.
+- Modules uses tonal cards with switches, import and visualization actions.
+- Settings groups the optional local profile, release updates, privacy and project information.
+- Scrollable content, system insets, a minimum 48dp interactive area and system font scaling remain part of the design.
 
-- **Experience / 星球首页**：电影感、沉浸、留白、单一视觉焦点。星球承担品牌记忆。
-- **Operate / 工具页**：精密仪器、编辑式信息层级、数据优先、低噪音。
+## Theme
 
-二者共享同一套颜色、排版、形状、间距、动效和状态语义。不能再出现“首页一套皮肤、工具页还是默认 Material 3”的割裂。
+- Background `#141218`; container low `#1D1B20`; container `#211F26`.
+- Primary `#D0BCFF` / on-primary `#381E72`.
+- Text `#E6E0E9`; secondary text `#CAC4D0`.
+- Shapes: 4, 8, 12, 16 and 28dp; spacing follows a 4dp grid.
+- Use Material typography roles and tabular numerals for measurements.
+- Data channel and band colors encode signals independently of interactive selection colors.
 
-## 色板
+## Components and motion
 
-全程纯深色，不做浅色，不启用 Dynamic Color。
+Use Material cards, navigation items, filter chips, segmented buttons, outlined text fields, list items, switches, dialogs, progress indicators and buttons. Decorative aurora and planetary canvases are removed. Page transitions respect Android's animation scale; charts have a static background.
 
-品牌主色不再使用青绿。绿色/青绿色不得用于主按钮、选中态、大面积图形、标题或品牌强调，只允许作为极小的 success/connected 语义状态。
+The supplied PNG is preserved byte for byte in the app and README. The Android adaptive icon places it on a white background to retain the black mark.
 
-基础方向：
+## Verification
 
-- Void `#07080D`：全局背景
-- Obsidian `#0D111A`：主要表面
-- Eclipse `#151B28`：抬升表面
-- Starlight `#F2F0EA`：主文字
-- MoonDust `#9298A8`：次文字
-- OrbitBlue `#7F98FF`：主要交互/选中
-- LunarViolet `#9B8CFF`：次级品牌强调
-- SolarMetal `#D2AD70`：极少量暖金属强调
-- Danger `#FF6E7A`：错误
-- Success：低饱和绿色，仅用于小型成功/连接状态
-
-所有颜色必须 token 化，组件内禁止散落 raw hex。
-
-## 星球
-
-- 星球是首页唯一一级视觉主角。
-- 使用真实的光照方向、暗部、边缘大气与低频纹理，避免高饱和 glow。
-- 专注与休息必须是两颗不同气质的行星，而不只是换 hue。
-- 星尘、轨道、星云只能作为低对比背景层。
-- 自转、呼吸、视差都应慢而克制；Reduce Motion 下退化为静态。
-- 优先用 Compose Canvas/Brush/Path，不依赖视频、Lottie、网络图片或 API 31 才成立的 blur。
-
-## 排版
-
-- 用大小、字重、字距与留白建立层级，不要所有页标题都复制同一套 Material 默认样式。
-- 数值继续使用 tabular numerals/等宽数字，Hz/kΩ/µV/% 等量值稳定对齐。
-- 中文正文优先可读性；正文与关键数据对比度达到 WCAG AA。
-- 1.3x 系统字号下关键页面不截断。
-
-## 组件与表面
-
-- 不再用“所有内容都包 Card”来制造层级。
-- 建立少量 radius token，例如 8 / 12 / 18 / capsule，并按用途固定。
-- 表面主要靠明度差、间距、1dp 细边线与极克制透明度区分，不使用明显投影。
-- 玻璃拟态只能非常少量使用，不能成为默认容器语言。
-- 建立真正有品牌识别度的复用组件，例如 `PlanetScaffold`、`OrbitalNavigation`、`InstrumentSurface`、`SegmentedModeControl`、`StatusPill`、`PrimaryActionDock`。
-
-## 导航
-
-- 主导航最多 5 个一级入口。
-- 首页允许无传统 TopAppBar。
-- 默认厚重 Material NavigationBar 应被重做为更轻的品牌导航容器。
-- Drawer 如与底部导航重复，可缩减为低频入口，但不得删除任何现有功能。
-- 系统返回、状态恢复、safe area、IME 行为不得回归。
-
-## 动效
-
-- 150–420ms 的页面/控件反馈为主；星球等氛围动效可以更慢。
-- 动效必须表达层级、空间或状态变化，不允许纯装饰性弹跳、闪烁和快速旋转。
-- 无限动画只在对应页面可见且业务状态需要时运行。
-- Reduce Motion 是发布门槛，不是可选优化。
-
-## 数据可视化
-
-- 数据可信优先于装饰。
-- 图表轴、单位、图例、通道颜色必须清楚。
-- 通道色可多色，但整体低饱和、可区分，并与品牌主色解耦。
-- 不得通过降低文字/网格对比度营造“高级感”。
-- 实时波形性能优先，避免装饰动画增加明显重组或绘制成本。
-
-## 明确禁止
-
-- 绿色/青绿色品牌主色
-- 赛博朋克/电竞霓虹
-- 满屏 glow
-- 廉价彩虹渐变
-- 大量 glassmorphism
-- 默认 Material 示例项目观感
-- 卡片套卡片
-- 每个控件都同一种圆角
-- Unicode 图标混用
-- 为动画而动画
-- 用低对比度牺牲数据可读性
-
-## 验收基准
-
-- 去掉 logo 后仍能识别为同一款 BrainExporter。
-- 首页 3 秒内形成明确的“星球”品牌记忆，且只有一个视觉焦点。
-- 监测页一眼能找到连接、采集、阻抗、视图切换，数据比控制更突出。
-- 所有页面都进入同一设计系统，没有默认 AlertDialog/TextField/NavigationBar 明显穿帮。
-- TalkBack 完整、触控目标 ≥48dp、Reduce Motion 生效、API 26 可正常使用。
+Run unit tests, lint and debug assembly. UI smoke tests cover navigation, connection selection, settings inputs and recording/impedance safeguards. Inspect emulator captures at normal and enlarged font scales. Hardware validation still requires an RT-BCI board.
