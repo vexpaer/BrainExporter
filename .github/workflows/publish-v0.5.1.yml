@@ -1,4 +1,4 @@
-name: Publish BrainExporter v0.5.0
+name: Publish BrainExporter v0.5.1
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-brainexporter-v0.5.0
+  group: publish-brainexporter-v0.5.1
   cancel-in-progress: false
 
 jobs:
@@ -44,10 +44,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          grep -Eq '^[[:space:]]*versionCode = 5$' app/build.gradle.kts
-          grep -Eq '^[[:space:]]*versionName = "0.5.0"$' app/build.gradle.kts
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.5.0" >/dev/null 2>&1; then
-            echo "::error::Tag v0.5.0 already exists; refusing to overwrite."
+          grep -Eq '^[[:space:]]*versionCode = 6$' app/build.gradle.kts
+          grep -Eq '^[[:space:]]*versionName = "0.5.1"$' app/build.gradle.kts
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.5.1" >/dev/null 2>&1; then
+            echo "::error::Tag v0.5.1 already exists; refusing to overwrite."
             exit 1
           fi
           for name in SIGNING_KEYSTORE_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
@@ -79,11 +79,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp app/build/outputs/apk/release/app-release.apk BrainExporter-v0.5.0.apk
+          cp app/build/outputs/apk/release/app-release.apk BrainExporter-v0.5.1.apk
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs BrainExporter-v0.5.0.apk
-          sha256sum BrainExporter-v0.5.0.apk > SHA256SUMS.txt
+          "$APKSIGNER" verify --verbose --print-certs BrainExporter-v0.5.1.apk
+          sha256sum BrainExporter-v0.5.1.apk > SHA256SUMS.txt
 
       - name: Create release tag and publish
         shell: bash
@@ -92,20 +92,20 @@ jobs:
         run: |
           set -euo pipefail
           gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/v0.5.0" \
+            -f ref="refs/tags/v0.5.1" \
             -f sha="$GITHUB_SHA"
-          gh release create v0.5.0 \
-            BrainExporter-v0.5.0.apk SHA256SUMS.txt \
+          gh release create v0.5.1 \
+            BrainExporter-v0.5.1.apk SHA256SUMS.txt \
             --verify-tag \
-            --title "BrainExporter v0.5.0" \
-            --notes-file <(sed -n '/^## 0.5.0/,/^## 0.3.0/p' CHANGELOG.md | sed '$d')
+            --title "BrainExporter v0.5.1" \
+            --notes-file <(sed -n '/^## 0.5.1/,/^## 0.5.0/p' CHANGELOG.md | sed '$d')
 
       - name: Upload release artifacts to Actions
         uses: actions/upload-artifact@v4
         with:
-          name: BrainExporter-v0.5.0
+          name: BrainExporter-v0.5.1
           path: |
-            BrainExporter-v0.5.0.apk
+            BrainExporter-v0.5.1.apk
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30

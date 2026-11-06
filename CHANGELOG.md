@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1 — 2026-11-06
+
+- Adopt a dark Material 3 interface across Home, Monitor, Modules and Settings.
+- Replace the app icon, Home branding and README mark with the black BrainExporter logo.
+- Rename Account to Settings, grouping local profiles, updates and privacy information.
+- Show discovered devices directly in Monitor and separate device status, charts and recording controls.
+- Rewrite the README with concise setup, hardware, development and module documentation.
+- Add Compose UI checks at standard and enlarged font scales.
+- Preserve BLE acquisition, signal processing, impedance safeguards and local CSV export.
+
 ## 0.5.0 — 2026-10-25
 
 - Reframed the app around live EEG acquisition with a minimal English-first interface.
