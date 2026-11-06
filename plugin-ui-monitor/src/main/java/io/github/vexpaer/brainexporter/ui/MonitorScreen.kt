@@ -120,7 +120,6 @@ internal fun MonitorScreen(
                     busy = busy,
                     scanning = scanning,
                     onScan = { permissionGate(controller::scan) },
-                    onOpenPanel = { panelVisible = true },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -171,10 +170,7 @@ internal fun MonitorScreen(
             dismissLabel = "Cancel",
             onDismiss = { impedanceRequest = -1 },
             text = {
-                Text(
-                    "ADS1299 injects approximately 6 nA AC test current.\n\n" +
-                        "Use battery power or compliant isolation. Never connect a worn board to non-isolated mains-powered USB.",
-                )
+                Text("Test current: ~6 nA AC. Use battery power or proper isolation while wearing the board.")
             },
         )
     }
@@ -184,14 +180,13 @@ internal fun MonitorScreen(
 @Composable
 private fun ConnectHero(
     snapshot: MonitorSnapshot, onConnect: (String) -> Unit,
-    busy: Boolean, scanning: Boolean, onScan: () -> Unit, onOpenPanel: () -> Unit,
+    busy: Boolean, scanning: Boolean, onScan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier, contentPadding = PaddingValues(Spacing.XL), verticalArrangement = Arrangement.spacedBy(Spacing.M)) {
-        item { PageHeader("Monitor", "Connect to your EEG device") }
+        item { PageHeader("Monitor") }
         item {
             InstrumentSurface {
-                EmptyState(Icons.Filled.GraphicEq, "Ready when you are", "RT-BCI / ADS1299 · 8 channels · Bluetooth Low Energy", tint = OrbitBlue)
                 Button(onClick = onScan, enabled = !busy && !scanning, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     if (busy || scanning) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -199,7 +194,6 @@ private fun ConnectHero(
                     }
                     Text(if (busy) "Connecting…" else if (scanning) "Scanning…" else "Scan for devices")
                 }
-                TextButton(onClick = onOpenPanel) { Text("Monitor controls") }
             }
         }
         if (snapshot.connection.phase == ConnectionPhase.ERROR) {
@@ -210,8 +204,6 @@ private fun ConnectHero(
             items(snapshot.devices, key = { it.id }) { device ->
                 DeviceRow(device = device, onConnect = { if (!busy) onConnect(device.id) })
             }
-        } else {
-            item { Text(if (scanning) "Keep your powered EEG board nearby." else "Power on your board, then scan to find it.", color = MoonDust, style = MaterialTheme.typography.bodyMedium) }
         }
     }
 }
@@ -404,7 +396,7 @@ private fun FeatureMatrix(
         if (features.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.GraphicEq,
-                title = "Start recording to see live feature output.",
+                title = "No feature data",
                 detail = null,
                 tint = LunarViolet,
                 modifier = Modifier.align(Alignment.Center),
@@ -579,12 +571,6 @@ private fun ControlPanel(
                         snapshot.devices.take(8).forEach { device ->
                             DeviceRow(device = device, onConnect = { controller.connect(device.id) })
                         }
-                    } else {
-                        Text(
-                            "Select a discovered RT-BCI device.",
-                            color = MoonDust,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
                     }
                 }
             }
@@ -609,11 +595,6 @@ private fun ControlPanel(
                     Text(it, color = MoonDust, style = MaterialTheme.typography.labelSmall)
                 }
                 acquisition.error?.let { Text(it, color = Danger) }
-                Text(
-                    "CSV · Documents/eegData",
-                    color = MoonDust.copy(alpha = 0.85f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
             }
         }
 
@@ -639,8 +620,6 @@ private fun ControlPanel(
                             Text("Remove DC offset", color = MoonDust, style = MaterialTheme.typography.labelMedium)
                             Switch(checked = demean, onCheckedChange = onDemeanChange)
                         }
-                    } else {
-                        Text(viewHint(snapshot.activeView), color = MoonDust, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -666,9 +645,6 @@ private fun ControlPanel(
                         isSelected = { value -> value == snapshot.selectedModuleId },
                         onSelect = { value -> controller.selectModule(value) },
                     )
-                    if (snapshot.modules.none { it.enabled }) {
-                        Text("Enable a processing module under Modules.", color = MoonDust, style = MaterialTheme.typography.labelSmall)
-                    }
                 }
             }
         }
@@ -701,7 +677,7 @@ private fun ControlPanel(
         }
 
         if (snapshot.activeView == MonitorView.IMPEDANCE) {
-            item { SectionLabel("Impedance detail") }
+            item { SectionLabel("Impedance") }
             item {
                 ImpedanceToolbar(
                     snapshot = snapshot,
@@ -720,16 +696,8 @@ private fun ControlPanel(
             }
         }
 
-        item { SectionLabel("Link metrics") }
+        item { SectionLabel("Link") }
         item { MetricsStrip(snapshot) }
-        item {
-            Text(
-                "Hann window · interpolated packet gaps · research use only.",
-                color = MoonDust.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(bottom = Spacing.S),
-            )
-        }
     }
 }
 
@@ -772,15 +740,15 @@ private fun DeviceRow(device: DeviceDescriptor, onConnect: () -> Unit) {
 private fun MetricsStrip(snapshot: MonitorSnapshot) {
     val metrics = snapshot.metrics
     LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.S)) {
-        item { MetricCard("Sample rate", if (metrics.frames == 0L) "—" else "%.1f Hz".format(metrics.effectiveSampleRateHz), "Target 250 Hz") }
-        item { MetricCard("Packet loss", if (metrics.frames == 0L) "—" else "%.1f%%".format(metrics.packetLossRatio * 100), "Missing ${metrics.missingPackets}") }
-        item { MetricCard("Valid frames", "${metrics.frames}", formatBytes(metrics.receivedBytes)) }
-        item { MetricCard("Link", snapshot.connection.profileName ?: "—", snapshot.connection.deviceName ?: "Not connected") }
+        item { MetricCard("Sample rate", if (metrics.frames == 0L) "—" else "%.1f Hz".format(metrics.effectiveSampleRateHz)) }
+        item { MetricCard("Packet loss", if (metrics.frames == 0L) "—" else "%.1f%%".format(metrics.packetLossRatio * 100)) }
+        item { MetricCard("Valid frames", "${metrics.frames}") }
+        item { MetricCard("Link", snapshot.connection.profileName ?: "—") }
     }
 }
 
 @Composable
-private fun MetricCard(label: String, value: String, detail: String) {
+private fun MetricCard(label: String, value: String) {
     InstrumentSurface(
         modifier = Modifier.width(164.dp),
         contentPadding = PaddingValues(Spacing.S),
@@ -795,7 +763,6 @@ private fun MetricCard(label: String, value: String, detail: String) {
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleMedium.numeric(),
             )
-            Text(detail, color = MoonDust, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -809,7 +776,6 @@ private fun ImpedanceToolbar(
     InstrumentSurface(color = Obsidian) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
             Text("ADS1299 impedance", color = Starlight, fontWeight = FontWeight.SemiBold)
-            Text("6 nA · 31.2 Hz · 5s/channel", color = MoonDust, style = MaterialTheme.typography.bodySmall)
             if (snapshot.impedance.running) {
                 Text(
                     "CH ${snapshot.impedance.channel ?: "—"} · ${(snapshot.impedance.progress * 100).toInt()}%",
@@ -868,20 +834,6 @@ private fun ImpedanceCard(
             Button(onClick = onMeasure, enabled = enabled) { Text("Measure") }
         }
     }
-}
-
-private fun viewHint(view: MonitorView): String = when (view) {
-    MonitorView.TIME -> "5s window"
-    MonitorView.PSD -> "Hann · latest 5s · 0–60 Hz"
-    MonitorView.SPECTRUM -> "FFT magnitude · ~2s · 0–60 Hz"
-    MonitorView.BANDS -> "Relative power · latest 5s"
-    MonitorView.IMPEDANCE -> "6 nA · 31.2 Hz · 5s/channel"
-}
-
-private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
-    bytes >= 1_024 -> "%.1f kB".format(bytes / 1_024.0)
-    else -> "$bytes B"
 }
 
 private fun formatImpedance(kiloOhms: Double): String =

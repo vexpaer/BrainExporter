@@ -8,7 +8,7 @@ Researchers connect a compatible BLE board, inspect eight channels, record times
 
 ## Interface
 
-English UI, dark Material 3 theme, supplied black brain/export logo. Primary navigation: Home · Monitor · Modules · Settings. See DESIGN.md for the current visual contract. Earlier planetary and aurora design briefs are historical.
+English UI, dark Material 3 theme, supplied black brain/export logo. Home keeps a minimal blue planet with one Monitor action; primary navigation is Home · Monitor · Modules · Settings. See DESIGN.md for the current visual contract.
 
 ## Capabilities
 

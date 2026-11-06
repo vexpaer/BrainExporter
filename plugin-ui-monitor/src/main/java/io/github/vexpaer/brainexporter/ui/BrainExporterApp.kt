@@ -138,12 +138,7 @@ fun BrainExporterApp(
                 },
                 dismissLabel = "Later",
                 onDismiss = { dismissedUpdateVersion = updateState.availableVersion },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-                        Text("A new version is available on GitHub. Download the APK with Android's download manager.")
-                        TextButton(onClick = openReleases) { Text("View release") }
-                    }
-                },
+                text = { TextButton(onClick = openReleases) { Text("View release") } },
             )
         }
         if (updateState.phase == UpdatePhase.READY_TO_INSTALL &&
@@ -159,7 +154,6 @@ fun BrainExporterApp(
                 },
                 dismissLabel = "Later",
                 onDismiss = { dismissedInstallVersion = updateState.availableVersion },
-                text = { Text(updateState.message) },
             )
         }
 
@@ -307,7 +301,6 @@ private fun SettingsScreen(
             onDismiss = { showAuth = false },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-                    Text("Credentials stay on this device.")
                     BrandTextField(
                         label = "Username",
                         value = username,
@@ -344,7 +337,6 @@ private fun SettingsScreen(
         item {
             PageHeader(
                 title = "Settings",
-                subtitle = "Local profile, updates and app information",
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -352,7 +344,6 @@ private fun SettingsScreen(
             InstrumentSurface(contentPadding = PaddingValues(0.dp)) {
                 ListItem(
                     headlineContent = { Text(currentUser ?: "Guest profile") },
-                    supportingContent = { Text(if (currentUser == null) "Optional account stored on this device" else "Signed in locally") },
                     leadingContent = { Icon(Icons.Filled.AccountCircle, null, tint = MaterialTheme.colorScheme.primary) },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 )
@@ -382,11 +373,11 @@ private fun SettingsScreen(
         item { UpdateCard(updateState, updateController::checkForUpdates, updateController::downloadUpdate, updateController::installDownloadedUpdate, onOpenRelease) }
         item {
             InstrumentSurface(color = Obsidian, contentPadding = PaddingValues(0.dp)) {
-                ProfileEntry("EEG data & privacy", "Saved to Documents/eegData") {
-                    onNotice("EEG files stay in Documents/eegData. No cloud upload.")
+                ProfileEntry("EEG data & privacy") {
+                    onNotice("Documents/eegData · local only")
                 }
                 HorizontalHairline()
-                ProfileEntry("GitHub & about", GITHUB_REPOSITORY, onOpenGithub)
+                ProfileEntry("GitHub & about", onOpenGithub)
             }
         }
     }
@@ -420,7 +411,7 @@ private fun UpdateCard(
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SectionLabel("VERSION")
                     Text(
-                        "App version · v${state.currentVersion}",
+                        "v${state.currentVersion}",
                         color = Starlight,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
@@ -437,11 +428,7 @@ private fun UpdateCard(
                 }
                 StatusPill(dotColor = dot, label = label, textColor = if (state.phase == UpdatePhase.UP_TO_DATE) MoonDust else dot)
             }
-            Text(
-                state.message,
-                color = if (state.phase == UpdatePhase.ERROR) Danger else MoonDust,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            if (state.phase == UpdatePhase.ERROR) Text(state.message, color = Danger, style = MaterialTheme.typography.bodySmall)
             if (state.phase == UpdatePhase.DOWNLOADING) {
                 val progress = state.progress
                 if (progress == null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -463,9 +450,9 @@ private fun UpdateCard(
 }
 
 @Composable
-private fun ProfileEntry(label: String, detail: String, onClick: () -> Unit) {
+private fun ProfileEntry(label: String, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(label) }, supportingContent = { Text(detail) },
+        headlineContent = { Text(label) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClickLabel = label, onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

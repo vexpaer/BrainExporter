@@ -28,11 +28,8 @@ internal fun rememberReduceMotion(): Boolean {
 }
 
 @Composable
-internal fun PageHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.XS)) {
-        Text(title, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurface)
-        subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
+internal fun PageHeader(title: String, modifier: Modifier = Modifier) {
+    Text(title, modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurface)
 }
 
 /** Filled or outlined M3 cards; selection is the only reason to add an outline. */
@@ -92,7 +89,7 @@ internal fun AppNavigation(items: List<NavigationDestination>, selectedIndex: In
 internal fun BrandAlertDialog(
     onDismissRequest: () -> Unit, title: String, confirmLabel: String, onConfirm: () -> Unit,
     modifier: Modifier = Modifier, dismissLabel: String? = null, onDismiss: (() -> Unit)? = null,
-    bodyStyle: TextStyle = MaterialTheme.typography.labelLarge, text: @Composable () -> Unit,
+    bodyStyle: TextStyle = MaterialTheme.typography.labelLarge, text: (@Composable () -> Unit)? = null,
 ) {
     AlertDialog(onDismissRequest = onDismissRequest, modifier = modifier,
         title = { Text(title) }, text = text,
