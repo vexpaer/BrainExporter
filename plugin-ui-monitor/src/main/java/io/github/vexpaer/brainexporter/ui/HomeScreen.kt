@@ -1,68 +1,174 @@
 package io.github.vexpaer.brainexporter.ui
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.vexpaer.brainexporter.sdk.ConnectionPhase
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+private val PlanetBlue = Color(0xFF7F98FF)
+private val PlanetLight = Color(0xFFB9C9FF)
+private val PlanetMid = Color(0xFF344675)
+private val PlanetDeep = Color(0xFF10172B)
 
 @Composable
 internal fun HomeScreen(connectionPhase: ConnectionPhase, onOpenMonitor: () -> Unit, modifier: Modifier = Modifier) {
     val connected = connectionPhase == ConnectionPhase.CONNECTED
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(Spacing.XL), verticalArrangement = Arrangement.spacedBy(Spacing.XL)) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.M)) {
-                Image(painterResource(R.drawable.brain_exporter_logo), contentDescription = "BrainExporter logo", modifier = Modifier.size(64.dp).clip(ShapeL))
-                Column(Modifier.weight(1f)) {
-                    Text("BrainExporter", style = MaterialTheme.typography.titleLarge)
-                    Text("Your portable EEG workspace", style = MaterialTheme.typography.bodyMedium, color = MoonDust)
-                }
+    val reduceMotion = rememberReduceMotion()
+    val orbit = remember { Animatable(0f) }
+
+    LaunchedEffect(reduceMotion) {
+        if (reduceMotion) {
+            orbit.snapTo(42f)
+        } else {
+            while (true) {
+                orbit.animateTo(360f, animationSpec = tween(24_000, easing = LinearEasing))
+                orbit.snapTo(0f)
             }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.M)) {
-                Text("Closer to\nthe signal.", style = MaterialTheme.typography.displaySmall)
-                Text("Acquire, understand and export EEG from your Android device.", style = MaterialTheme.typography.bodyLarge, color = MoonDust)
-            }
-        }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(Spacing.XL), verticalArrangement = Arrangement.spacedBy(Spacing.M)) {
-                    Text(if (connected) "Device connected" else "Start a session", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text(if (connected) "Your live workspace is ready." else "Connect your RT-BCI over Bluetooth to view eight EEG channels in real time.", color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Button(onClick = onOpenMonitor, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Text(if (connected) "Continue to Monitor" else "Open Monitor")
-                        Spacer(Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+    }
+
+    Column(
+        modifier = modifier.fillMaxSize().background(Void).padding(horizontal = Spacing.XL, vertical = Spacing.L),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Spacer(Modifier.height(1.dp))
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val planetSize = minOf(maxWidth * 0.88f, maxHeight * 0.78f, 320.dp)
+            Canvas(
+                modifier = Modifier
+                    .size(planetSize)
+                    .semantics {
+                        contentDescription = "Open EEG monitor"
+                        role = Role.Button
                     }
-                }
+                    .clickable(role = Role.Button, onClick = onOpenMonitor),
+            ) {
+                drawMinimalPlanet(orbit.value)
             }
         }
-        item {
-            InstrumentSurface(contentPadding = PaddingValues(0.dp)) {
-                HomeFeature(Icons.Filled.GraphicEq, "See the whole signal", "8 channels · Waveforms, spectra and band power")
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = Spacing.M))
-                HomeFeature(Icons.Filled.Extension, "Shape your workflow", "Built-in and importable processing modules")
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = Spacing.M))
-                HomeFeature(Icons.Filled.SaveAlt, "Keep your data close", "Timestamped CSV saved on your device")
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.M),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
+                Box(
+                    Modifier.size(8.dp).background(if (connected) Success else MoonDust.copy(alpha = 0.65f), CircleShape),
+                )
+                Text(
+                    if (connected) "Connected" else "Not connected",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            Button(onClick = onOpenMonitor, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                Text("Open Monitor")
             }
         }
-        item { Text("Built for research. Designed to stay local.", style = MaterialTheme.typography.bodySmall, color = MoonDust) }
     }
 }
 
-@Composable
-private fun HomeFeature(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String) {
-    ListItem(headlineContent = { Text(title) }, supportingContent = { Text(detail) }, leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) }, colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow))
+private fun DrawScope.drawMinimalPlanet(orbitDegrees: Float) {
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val radius = size.minDimension * 0.285f
+    val orbitRect = Rect(
+        left = center.x - radius * 1.55f,
+        top = center.y - radius * 0.45f,
+        right = center.x + radius * 1.55f,
+        bottom = center.y + radius * 0.45f,
+    )
+    val orbitStroke = Stroke(width = 1.35.dp.toPx(), cap = StrokeCap.Round)
+
+    drawCircle(
+        brush = Brush.radialGradient(
+            0f to PlanetBlue.copy(alpha = 0.19f),
+            0.55f to PlanetBlue.copy(alpha = 0.06f),
+            1f to Color.Transparent,
+            center = center,
+            radius = radius * 1.7f,
+        ),
+        radius = radius * 1.7f,
+        center = center,
+    )
+
+    rotate(-9f, center) {
+        drawArc(
+            color = PlanetBlue.copy(alpha = 0.35f),
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = orbitRect.topLeft,
+            size = orbitRect.size,
+            style = orbitStroke,
+        )
+    }
+
+    drawCircle(
+        brush = Brush.radialGradient(
+            0f to PlanetLight,
+            0.32f to PlanetMid,
+            1f to PlanetDeep,
+            center = center - Offset(radius * 0.38f, radius * 0.42f),
+            radius = radius * 1.7f,
+        ),
+        radius = radius,
+        center = center,
+    )
+    drawCircle(
+        color = PlanetBlue.copy(alpha = 0.38f),
+        radius = radius,
+        center = center,
+        style = Stroke(width = 1.dp.toPx()),
+    )
+
+    rotate(-9f, center) {
+        drawArc(
+            color = PlanetLight.copy(alpha = 0.72f),
+            startAngle = 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = orbitRect.topLeft,
+            size = orbitRect.size,
+            style = orbitStroke,
+        )
+        if (orbitDegrees in 0f..180f) {
+            val angle = orbitDegrees / 180f * PI
+            val moon = Offset(
+                center.x + (cos(angle) * radius * 1.55f).toFloat(),
+                center.y + (sin(angle) * radius * 0.45f).toFloat(),
+            )
+            drawCircle(PlanetLight.copy(alpha = 0.18f), radius = 7.dp.toPx(), center = moon)
+            drawCircle(Color.White, radius = 2.dp.toPx(), center = moon)
+        }
+    }
 }

@@ -79,7 +79,6 @@ internal fun ModuleScreen(
             },
             dismissLabel = "Cancel",
             onDismiss = { removalRequest = null },
-            text = { Text("This removes the imported module. Existing EEG files are unaffected.") },
         )
     }
 
@@ -94,10 +93,7 @@ internal fun ModuleScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.M),
             ) {
                 Column {
-                    PageHeader(
-                        title = "Modules",
-                        subtitle = "Manage signal pipelines",
-                    )
+                    PageHeader(title = "Modules")
                 }
                 OutlinedButton(onClick = {
                     importer.launch(
@@ -124,43 +120,13 @@ internal fun ModuleScreen(
                 InstrumentSurface(color = Obsidian) {
                     EmptyState(
                         icon = Icons.Filled.Extension,
-                        title = "No modules installed.",
-                        detail = "Import a module to view its output in Monitor.",
+                        title = "No modules installed",
+                        detail = null,
                     )
                 }
             }
         }
 
-    }
-}
-
-@Composable
-private fun ModuleContractOverview() {
-    InstrumentSurface {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
-            SectionLabel("SIGNAL PIPELINES")
-            ContractRow(
-                color = OrbitBlue,
-                title = "EEG → EEG",
-                detail = "Filtered waveforms, spectra and band power.",
-            )
-            ContractRow(
-                color = LunarViolet,
-                title = "EEG → Features",
-                detail = "Live features and history.",
-            )
-        }
-    }
-}
-
-@Composable
-private fun ContractRow(color: androidx.compose.ui.graphics.Color, title: String, detail: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = 5.dp).size(9.dp).background(color, CircleShape))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Starlight, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = MoonDust, style = MaterialTheme.typography.bodySmall)
-        }
     }
 }
 
@@ -196,7 +162,6 @@ private fun ModuleCard(
                 }
                 Switch(checked = module.enabled, onCheckedChange = onEnabledChange, modifier = Modifier.semantics { contentDescription = "Enable ${descriptor.displayName}" })
             }
-            Text(descriptor.description, color = MoonDust, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XXS), verticalAlignment = Alignment.CenterVertically) {
                 ModuleTag(
                     if (descriptor.type == ProcessingModuleType.EEG_TO_EEG) "EEG → EEG" else "EEG → Features",
@@ -204,13 +169,7 @@ private fun ModuleCard(
                 )
                 ModuleTag(descriptor.engine, MoonDust)
             }
-            Text(
-                module.error ?: module.message,
-                color = if (module.error == null) MoonDust else Danger,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            module.error?.let { Text(it, color = Danger, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.XS)) {
                 Button(onClick = onVisualize) { Text(if (selected) "Viewing" else "View in Monitor") }
                 if (descriptor.origin == ProcessingModuleOrigin.IMPORTED) {
